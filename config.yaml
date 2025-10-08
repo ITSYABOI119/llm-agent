@@ -111,6 +111,19 @@ security:
   # Enable/disable file operations
   allow_file_operations: true
 
+  # Rate limiting (requests per minute)
+  rate_limits:
+    default_per_minute: 60  # Default limit for unlisted tools
+    write_file_per_minute: 30
+    execute_command_per_minute: 10
+    http_request_per_minute: 20
+
+  # Resource quotas
+  resource_quotas:
+    max_cpu_percent: 90  # Maximum CPU usage
+    max_memory_mb: 2048  # Maximum memory usage (2GB)
+    max_disk_mb: 10240  # Minimum free disk space required (10GB)
+
 # Linter Settings (Phase 2)
 linter:
   enabled: ["flake8"]  # Available: flake8, pylint

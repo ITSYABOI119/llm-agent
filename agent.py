@@ -82,6 +82,12 @@ class Agent:
         self.sandbox = Sandbox(self.config)
         self.validator = Validator(self.config)
 
+        # Initialize rate limiting and resource monitoring
+        from safety.rate_limiter import RateLimiter
+        from safety.resource_monitor import ResourceMonitor
+        self.rate_limiter = RateLimiter(self.config)
+        self.resource_monitor = ResourceMonitor(self.config)
+
         # Initialize multi-model system
         self.task_analyzer = TaskAnalyzer()  # Legacy analyzer
         self.task_classifier = TaskClassifier()  # Phase 2: Smart routing
@@ -405,11 +411,27 @@ class Agent:
     def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool by name with given parameters"""
         logging.info(f"Executing tool: {tool_name} with params: {parameters}")
-        
+
+        # Check rate limits
+        if not self.rate_limiter.check_rate_limit(tool_name):
+            return {
+                "success": False,
+                "error": f"Rate limit exceeded for {tool_name}. Please try again later."
+            }
+
+        # Check resource usage
+        resource_error = self.resource_monitor.check_resources()
+        if resource_error:
+            logging.warning(f"Resource check failed: {resource_error}")
+            return {
+                "success": False,
+                "error": f"Resource limit exceeded: {resource_error}"
+            }
+
         # Log tool start and track execution time
         self.log_manager.log_tool_start(tool_name, parameters)
         start_time = time.time()
-        
+
         try:
             # File system tools
             if tool_name == "create_folder":

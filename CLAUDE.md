@@ -417,6 +417,11 @@ self.log_query.query_slow_operations(threshold=1.0)
 - ✅ **PLATFORM**: More detailed memory stats (used, available, percent)
 - ✅ **PLATFORM**: Cross-platform uptime and disk usage
 
+**Resource Management & Safety:**
+- ✅ **SAFETY**: Added rate limiting for tool executions (prevents abuse)
+- ✅ **SAFETY**: Added resource monitoring (CPU, memory, disk quotas)
+- ✅ **SAFETY**: Configurable limits per tool type in config.yaml
+
 ### Previous Features
 - ✅ Hybrid multi-model system with intelligent routing
 - ✅ Two-phase execution (plan → execute workflow)

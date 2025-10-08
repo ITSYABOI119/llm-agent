@@ -659,14 +659,14 @@ class Agent:
 
             # Network tools
             elif tool_name == "ping":
-                result = self.net_tools.ping(parameters.get("host"))
+                result = self.network_tools.ping(parameters.get("host"))
             elif tool_name == "check_port":
-                result = self.net_tools.check_port(
+                result = self.network_tools.check_port(
                     parameters.get("host"),
                     parameters.get("port")
                 )
             elif tool_name == "http_request":
-                result = self.net_tools.http_request(
+                result = self.network_tools.http_request(
                     parameters.get("url"),
                     parameters.get("method", "GET"),
                     parameters.get("headers", {}),

@@ -395,13 +395,27 @@ self.log_query.query_slow_operations(threshold=1.0)
 
 ## Recent Improvements
 
-### Latest (2025-01-08) - Critical Security & Quality Fixes
+### Latest (2025-01-08) - Security, Quality & Cross-Platform
+
+**Critical Security Fixes:**
 - ✅ **SECURITY**: Fixed command injection vulnerability (shell=False in commands.py)
 - ✅ **SECURITY**: Expanded dangerous command patterns (Windows, Linux, network, privilege escalation)
 - ✅ **SECURITY**: Added output redirection prevention (>, <, >>)
-- ✅ **BUG FIX**: Fixed process_tools bug in agent.py:651
-- ✅ **CODE QUALITY**: Added type hints to core agent.py methods
-- ✅ **CODE QUALITY**: Replaced bare except blocks with specific exceptions
+
+**Bug Fixes:**
+- ✅ **BUG FIX**: Fixed process_tools bug in agent.py:651 (self.proc_tools → self.process_tools)
+
+**Code Quality:**
+- ✅ **QUALITY**: Added type hints to core agent.py methods (Dict, Any, List, Optional, Tuple)
+- ✅ **QUALITY**: Replaced bare except blocks with specific exceptions
+- ✅ **REFACTOR**: Created tools/utils.py with shared utilities (get_safe_path, format_bytes)
+- ✅ **REFACTOR**: Eliminated code duplication (3 copies of _get_safe_path → 1 shared function)
+
+**Cross-Platform Support:**
+- ✅ **PLATFORM**: Refactored system.py to use psutil (works on Windows/Linux/macOS)
+- ✅ **PLATFORM**: Added CPU usage percentage monitoring
+- ✅ **PLATFORM**: More detailed memory stats (used, available, percent)
+- ✅ **PLATFORM**: Cross-platform uptime and disk usage
 
 ### Previous Features
 - ✅ Hybrid multi-model system with intelligent routing

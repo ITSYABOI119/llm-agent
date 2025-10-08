@@ -1,36 +1,61 @@
 """
 Validators
-Input validation and sanitization
+Input validation and sanitization using custom exceptions
 """
 
 import re
 import logging
+from typing import Dict, Any
+from tools.exceptions import ValidationError, SecurityError
 
 
 class Validator:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
-    def validate_filename(self, filename):
-        """Validate a filename for safety"""
+
+    def validate_filename(self, filename: str) -> bool:
+        """
+        Validate a filename for safety.
+
+        Args:
+            filename: Filename to validate
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValidationError: If filename is invalid
+            SecurityError: If filename contains dangerous patterns
+        """
         # Check for null bytes
         if '\0' in filename:
-            raise ValueError("Null bytes not allowed in filename")
-        
+            raise SecurityError("Null bytes not allowed in filename")
+
         # Check for dangerous patterns
         dangerous_patterns = ['..', '~', '$', '`', '|', ';', '&']
         for pattern in dangerous_patterns:
             if pattern in filename:
-                raise ValueError(f"Dangerous pattern '{pattern}' in filename")
-        
+                raise SecurityError(f"Dangerous pattern '{pattern}' in filename")
+
         # Check length
         if len(filename) > 255:
-            raise ValueError("Filename too long (max 255 characters)")
-        
+            raise ValidationError("Filename too long (max 255 characters)")
+
         return True
-    
-    def validate_command(self, command):
-        """Validate a command for safety"""
+
+    def validate_command(self, command: str) -> bool:
+        """
+        Validate a command for safety.
+
+        Args:
+            command: Shell command to validate
+
+        Returns:
+            True if valid
+
+        Raises:
+            SecurityError: If command contains dangerous patterns
+        """
         # Check for dangerous patterns
         dangerous_patterns = [
             # Linux destructive commands
@@ -53,19 +78,19 @@ class Validator:
         ]
         for pattern in dangerous_patterns:
             if pattern in command.lower():
-                raise ValueError(f"Dangerous command pattern detected")
+                raise SecurityError(f"Dangerous command pattern detected: {pattern}")
 
         # Check for command chaining that could bypass whitelist
         chain_chars = ['&&', '||', ';', '|']
         for char in chain_chars:
             if char in command:
-                raise ValueError(f"Command chaining not allowed: '{char}'")
+                raise SecurityError(f"Command chaining not allowed: '{char}'")
 
         # Check for redirects (can overwrite files)
         redirect_chars = ['>', '<', '>>']
         for char in redirect_chars:
             if char in command:
-                raise ValueError(f"Output redirection not allowed: '{char}'")
+                raise SecurityError(f"Output redirection not allowed: '{char}'")
 
         return True
     

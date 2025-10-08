@@ -6,15 +6,17 @@ Handles shell command execution with security checks
 import subprocess
 import logging
 import shlex
+from typing import Dict, Any, Set
+from tools.exceptions import CommandExecutionError, SecurityError
 
 
 class CommandTools:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.allowed_commands = set(config['security']['allowed_commands'])
-        self.allow_execution = config['security']['allow_command_execution']
-    
-    def _is_command_allowed(self, command):
+        self.allowed_commands: Set[str] = set(config['security']['allowed_commands'])
+        self.allow_execution: bool = config['security']['allow_command_execution']
+
+    def _is_command_allowed(self, command: str) -> bool:
         """Check if a command is in the whitelist"""
         # Parse the command to get the base command
         try:
@@ -25,8 +27,8 @@ class CommandTools:
             return base_command in self.allowed_commands
         except ValueError:
             return False
-    
-    def run_command(self, command):
+
+    def run_command(self, command: str) -> Dict[str, Any]:
         """Execute a shell command with safety checks"""
         if not self.allow_execution:
             return {

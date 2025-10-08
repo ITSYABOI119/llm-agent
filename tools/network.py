@@ -7,14 +7,16 @@ import subprocess
 import logging
 import requests
 import socket
+from typing import Dict, Any, Optional
+from tools.exceptions import NetworkError
 
 
 class NetworkTools:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.timeout = 10
-    
-    def ping(self, host, count=4):
+        self.timeout: int = 10
+
+    def ping(self, host: str, count: int = 4) -> Dict[str, Any]:
         """Ping a host to check connectivity"""
         try:
             result = subprocess.run(
@@ -44,7 +46,7 @@ class NetworkTools:
             logging.error(f"Error pinging host: {e}")
             return {"success": False, "error": str(e)}
     
-    def check_port(self, host, port, timeout=5):
+    def check_port(self, host: str, port: int, timeout: int = 5) -> Dict[str, Any]:
         """Check if a port is open on a host"""
         try:
             port = int(port)
@@ -70,7 +72,7 @@ class NetworkTools:
             logging.error(f"Error checking port: {e}")
             return {"success": False, "error": str(e)}
     
-    def http_request(self, url, method="GET", headers=None, data=None):
+    def http_request(self, url: str, method: str = "GET", headers: Optional[Dict[str, str]] = None, data: Optional[Any] = None) -> Dict[str, Any]:
         """Make an HTTP request"""
         try:
             # Basic URL validation

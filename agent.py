@@ -28,8 +28,9 @@ from tools.logging_tools import LogManager, LogAnalyzer, LogQuery
 from tools.task_analyzer import TaskAnalyzer
 from tools.task_classifier import TaskClassifier  # Phase 2: Smart routing
 from tools.model_router import ModelRouter
-from tools.two_phase_executor import TwoPhaseExecutor
+from tools.executors import SinglePhaseExecutor, TwoPhaseExecutor  # Phase 2: Extracted executors
 from tools.parser import ToolParser  # Phase 2: Extracted parser
+from tools.context_builder import ContextBuilder  # Phase 2: Extracted context builder
 from safety.sandbox import Sandbox
 from safety.validators import Validator
 
@@ -93,11 +94,14 @@ class Agent:
         self.task_analyzer = TaskAnalyzer()  # Legacy analyzer
         self.task_classifier = TaskClassifier()  # Phase 2: Smart routing
         self.model_router = ModelRouter(self.config)
-        self.two_phase_executor = TwoPhaseExecutor(
-            f"http://{self.config['ollama']['host']}:{self.config['ollama']['port']}",
-            self.config
-        )
+
+        # Phase 2: Extracted executors
+        api_url = f"http://{self.config['ollama']['host']}:{self.config['ollama']['port']}"
+        self.single_phase_executor = SinglePhaseExecutor(self.config)
+        self.two_phase_executor = TwoPhaseExecutor(api_url, self.config)
+
         self.parser = ToolParser(self.config)  # Phase 2: Extracted parser
+        self.context_builder = ContextBuilder(self.config)  # Phase 2: Extracted context builder
 
         # Ollama API endpoint
         self.api_url = f"http://{self.config['ollama']['host']}:{self.config['ollama']['port']}"
@@ -119,14 +123,6 @@ class Agent:
         # Note: Model swaps take ~2.5s on Windows (disk → VRAM)
         # Phase 2 minimizes swaps, Phase 3 adds smart retries
         logging.info("Agent initialized with Phase 1+2+3 improvements")
-
-        # Track files created/modified in current session
-        self.session_files = {
-            "created": set(),      # Files created via write_file
-            "modified": set(),     # Files modified via edit_file
-            "read": set(),         # Files read
-            "deleted": set()       # Files deleted
-        }
 
         logging.info(f"Agent initialized: {self.config['agent']['name']}")
         logging.info(f"Workspace: {self.config['agent']['workspace']}")
@@ -454,7 +450,7 @@ class Agent:
 
                 # Also check session files with normalized paths
                 normalized_path = str(full_path.relative_to(self.fs_tools.workspace)) if full_path.is_relative_to(self.fs_tools.workspace) else file_path
-                created_this_session = normalized_path in self.session_files["created"] or file_path in self.session_files["created"]
+                created_this_session = normalized_path in self.context_builder.session_files["created"] or file_path in self.context_builder.session_files["created"]
 
                 if (file_exists or created_this_session) and not force_overwrite:
                     # File exists - return error telling LLM to use edit_file
@@ -470,13 +466,11 @@ class Agent:
                 else:
                     result = self.fs_tools.write_file(file_path, file_content)
                     if result.get("success"):
-                        self.session_files["created"].add(normalized_path)
+                        self.context_builder.track_file_created(normalized_path)
                         # Auto-reindex the new file for RAG
                         self._reindex_file(file_path)
             elif tool_name == "read_file":
                 result = self.fs_tools.read_file(parameters.get("path"))
-                if result.get("success"):
-                    self.session_files["read"].add(parameters.get("path"))
             elif tool_name == "list_directory":
                 result = self.fs_tools.list_directory(parameters.get("path", "."))
             elif tool_name == "edit_file":
@@ -522,7 +516,7 @@ class Agent:
                     insert_before=insert_before_param
                 )
                 if result.get("success"):
-                    self.session_files["modified"].add(file_path)
+                    self.context_builder.track_file_modified(file_path)
                     # Auto-reindex the modified file for RAG
                     self._reindex_file(file_path)
             elif tool_name == "smart_edit":
@@ -559,7 +553,7 @@ class Agent:
                     result = self.fs_tools.smart_edit(file_path, instruction, llm_callback)
 
                     if result.get("success"):
-                        self.session_files["modified"].add(file_path)
+                        self.context_builder.track_file_modified(file_path)
                         # Auto-reindex the modified file for RAG
                         self._reindex_file(file_path)
             elif tool_name == "diff_edit":
@@ -597,7 +591,7 @@ class Agent:
                     result = self.fs_tools.diff_edit(file_path, instruction, llm_callback, max_iterations)
 
                     if result.get("success"):
-                        self.session_files["modified"].add(file_path)
+                        self.context_builder.track_file_modified(file_path)
                         # Auto-reindex the modified file for RAG
                         self._reindex_file(file_path)
             elif tool_name == "multi_file_edit":
@@ -635,17 +629,16 @@ class Agent:
                     if result.get("success"):
                         # Track all modified files
                         for file_path in result.get("files_modified", []):
-                            self.session_files["modified"].add(file_path)
+                            self.context_builder.track_file_modified(file_path)
                             # Auto-reindex each modified file
                             self._reindex_file(file_path)
             elif tool_name == "delete_file":
                 file_path = parameters.get("path")
                 result = self.fs_tools.delete_file(file_path)
                 if result.get("success"):
-                    self.session_files["deleted"].add(file_path)
                     # Remove from created/modified if it was tracked
-                    self.session_files["created"].discard(file_path)
-                    self.session_files["modified"].discard(file_path)
+                    self.context_builder.session_files["created"].discard(file_path)
+                    self.context_builder.session_files["modified"].discard(file_path)
                     # Remove from RAG index
                     self._delete_from_index(file_path)
 
@@ -800,14 +793,7 @@ class Agent:
 
     def _load_agent_rules(self):
         """Load project-specific rules from .agentrules file"""
-        try:
-            rules_path = Path(".agentrules")
-            if rules_path.exists():
-                with open(rules_path, 'r') as f:
-                    return f.read()
-        except Exception as e:
-            logging.debug(f"No .agentrules file found or error loading: {e}")
-        return None
+        return self.context_builder.load_agent_rules()
 
     def chat(self, user_message: str) -> str:
         """Send a message to the agent and get response with tool execution"""
@@ -1240,17 +1226,7 @@ Output ONLY tool calls, nothing else:"""
 
     def _build_session_context(self):
         """Build context about files created/modified in this session"""
-        parts = []
-        if self.session_files["created"]:
-            files = ", ".join(sorted(self.session_files["created"]))
-            parts.append(f"Files you created this session: {files}")
-        if self.session_files["modified"]:
-            files = ", ".join(sorted(self.session_files["modified"]))
-            parts.append(f"Files you modified this session: {files}")
-
-        if parts:
-            return "SESSION FILE TRACKING:\n" + "\n".join(parts) + "\n\nIMPORTANT: If you need to modify a file you created/modified earlier in this session, use edit_file NOT write_file."
-        return ""
+        return self.context_builder.build_session_context()
 
     def chat_with_verification(self, user_message):
         """

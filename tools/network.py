@@ -7,6 +7,7 @@ import subprocess
 import logging
 import requests
 import socket
+import platform
 from typing import Dict, Any, Optional
 from tools.exceptions import NetworkError
 
@@ -17,13 +18,29 @@ class NetworkTools:
         self.timeout: int = 10
 
     def ping(self, host: str, count: int = 4) -> Dict[str, Any]:
-        """Ping a host to check connectivity"""
+        """
+        Ping a host to check connectivity (cross-platform).
+
+        Args:
+            host: Hostname or IP address to ping
+            count: Number of ping packets to send
+
+        Returns:
+            Dict with success status, output, and reachability
+        """
         try:
+            # Platform-specific ping flags
+            system = platform.system().lower()
+            if system == 'windows':
+                cmd = ['ping', '-n', str(count), host]
+            else:  # Linux, macOS, BSD
+                cmd = ['ping', '-c', str(count), host]
+
             result = subprocess.run(
-                ['ping', '-c', str(count), host],
+                cmd,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout
+                timeout=count * 2 + 5  # Dynamic timeout based on count
             )
             
             # Parse output for basic stats
@@ -119,45 +136,58 @@ class NetworkTools:
             logging.error(f"Error making HTTP request: {e}")
             return {"success": False, "error": str(e)}
     
-    def get_ip_info(self):
-        """Get network interface information"""
+    def get_ip_info(self) -> Dict[str, Any]:
+        """
+        Get network interface information (cross-platform).
+
+        Returns:
+            Dict with success status and interface information
+        """
         try:
-            result = subprocess.run(
-                ['ip', 'addr'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if result.returncode != 0:
-                return {"success": False, "error": "Failed to get IP info"}
-            
-            # Parse the output
-            interfaces = []
-            current_interface = None
-            
-            for line in result.stdout.split('\n'):
-                line = line.strip()
-                if line and line[0].isdigit():
-                    # New interface
-                    parts = line.split(':')
-                    if len(parts) >= 2:
-                        current_interface = {
-                            "name": parts[1].strip(),
-                            "addresses": []
-                        }
-                        interfaces.append(current_interface)
-                elif 'inet ' in line and current_interface:
-                    # IP address
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        current_interface["addresses"].append(parts[1])
-            
+            import psutil
+        except ImportError:
+            return {
+                "success": False,
+                "error": "psutil not installed - run: pip install psutil"
+            }
+
+        try:
+            interfaces = {}
+
+            # Get all network interfaces
+            for iface_name, iface_addrs in psutil.net_if_addrs().items():
+                addresses = []
+
+                for addr in iface_addrs:
+                    addr_info = {
+                        "family": str(addr.family),
+                        "address": addr.address,
+                    }
+
+                    if addr.netmask:
+                        addr_info["netmask"] = addr.netmask
+                    if addr.broadcast:
+                        addr_info["broadcast"] = addr.broadcast
+
+                    addresses.append(addr_info)
+
+                # Get interface stats
+                stats = psutil.net_if_stats().get(iface_name)
+                interfaces[iface_name] = {
+                    "addresses": addresses,
+                    "is_up": stats.isup if stats else False,
+                    "speed": stats.speed if stats else 0,
+                    "mtu": stats.mtu if stats else 0
+                }
+
+            logging.info(f"Retrieved info for {len(interfaces)} network interfaces")
+
             return {
                 "success": True,
-                "interfaces": interfaces
+                "interfaces": interfaces,
+                "count": len(interfaces)
             }
-        
+
         except Exception as e:
             logging.error(f"Error getting IP info: {e}")
             return {"success": False, "error": str(e)}

@@ -1,0 +1,16 @@
+# Core Dependencies
+requests>=2.31.0
+pyyaml>=6.0.1
+psutil>=5.9.8
+
+# RAG System Dependencies (optional but recommended for full features)
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+tiktoken>=0.5.0
+
+# Linter Integration (Phase 2 - optional but recommended)
+flake8>=7.0.0  # Fast, simple linter
+# pylint>=3.0.0  # Comprehensive linter (optional, slower)
+
+# Note: All other imports (json, logging, os, sys, pathlib, etc.)
+# are part of Python standard library and don't need to be installed

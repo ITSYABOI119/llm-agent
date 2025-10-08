@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/*.log
+logs/*.json
+*.log
+
+# ChromaDB
+chroma_db/
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test outputs
+tests/reports/*.txt
+tests/reports/*.json
+test_report_*.txt
+test_results_*.json
+
+# Temporary files
+*.tmp
+*.bak
+.cache/

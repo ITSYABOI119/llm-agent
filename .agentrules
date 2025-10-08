@@ -1,0 +1,99 @@
+# Agent Rules - Project-Specific Instructions
+# Place this file in your project root to guide the agent's behavior
+
+## Code Style & Patterns
+
+### File Operations
+- Always use SHORT single-line patterns for insert_after/insert_before
+  - GOOD: "def multiply"
+  - BAD: "def multiply(a, b):\n    return a * b"
+- Create files BEFORE editing them
+- Use relative paths, not absolute
+
+### Python Code
+- Use type hints where appropriate
+- Include docstrings for functions and classes
+- Follow PEP 8 style guidelines
+- Add error handling for edge cases (e.g., division by zero)
+
+### Multi-Step Tasks
+- Break down complex requests into smaller tool calls
+- Create all required files first, then edit them
+- Use insert_after mode for adding functions after existing ones
+- Use insert_at_line for precise line-number insertions
+
+## Project Structure
+
+### Preferred Directory Layout
+```
+project/
+  ├── src/           # Source code
+  ├── tests/         # Test files
+  ├── docs/          # Documentation
+  └── config/        # Configuration files
+```
+
+### File Naming
+- Use snake_case for Python files: `my_module.py`
+- Use descriptive names: `user_authentication.py` not `auth.py`
+
+## Common Patterns
+
+### Creating a New Python Module
+1. Create folder structure
+2. Write __init__.py
+3. Write main implementation files
+4. Add imports to __init__.py
+
+### Adding Functions
+- Use insert_after with pattern "def previous_function"
+- Include blank line before new function
+- Add docstring to new function
+
+### Imports
+- Standard library imports first
+- Third-party imports second
+- Local imports last
+- Use insert_at_line with line_number=1 for adding imports
+
+## Error Handling
+
+### Common Mistakes to Avoid
+- Don't use multi-line patterns for insert_after
+- Don't edit files that don't exist yet
+- Don't use absolute paths
+- Don't forget to handle edge cases
+
+### When Things Fail
+- If insert_after fails, check the pattern is a single line
+- If file not found, create it first with write_file
+- If syntax error, review the generated code structure
+
+## Examples
+
+### Good: Adding a function after another
+```
+TOOL: edit_file
+PARAMS: {
+  "path": "calculator.py",
+  "mode": "insert_after",
+  "insert_after": "def multiply",
+  "content": "\ndef divide(a, b):\n    if b == 0:\n        raise ValueError('Cannot divide by zero')\n    return a / b\n"
+}
+```
+
+### Bad: Using multi-line pattern
+```
+TOOL: edit_file
+PARAMS: {
+  "path": "calculator.py",
+  "mode": "insert_after",
+  "insert_after": "def multiply(a, b):\n    return a * b",  # ❌ This will fail!
+  "content": "..."
+}
+```
+
+## Project-Specific Notes
+- This is a Python project using standard library only
+- Target Python 3.9+
+- All files should be in agent_workspace subdirectories

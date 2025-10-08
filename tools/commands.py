@@ -49,11 +49,15 @@ class CommandTools:
         
         try:
             logging.info(f"Executing command: {command}")
-            
-            # Execute command with timeout
+
+            # Execute command with timeout (shell=False for security)
+            # Split command into list for safe execution
+            import shlex
+            cmd_parts = shlex.split(command)
+
             result = subprocess.run(
-                command,
-                shell=True,
+                cmd_parts,
+                shell=False,  # Security: Prevent shell injection
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout

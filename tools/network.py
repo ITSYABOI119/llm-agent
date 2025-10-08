@@ -95,7 +95,7 @@ class NetworkTools:
             try:
                 content = response.json()
                 content_type = "json"
-            except:
+            except (ValueError, json.JSONDecodeError):
                 content = response.text[:5000]  # Limit response size
                 content_type = "text"
             

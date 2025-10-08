@@ -32,17 +32,41 @@ class Validator:
     def validate_command(self, command):
         """Validate a command for safety"""
         # Check for dangerous patterns
-        dangerous_patterns = ['rm -rf /', ':(){ :|:& };:', 'mkfs', 'dd if=']
+        dangerous_patterns = [
+            # Linux destructive commands
+            'rm -rf /', 'rm -rf ~', 'rm -rf *',
+            ':(){ :|:& };:',  # Fork bomb
+            'mkfs', 'dd if=', 'dd of=',
+            'chmod 777', 'chown', 'killall',
+            'shutdown', 'reboot', 'halt', 'poweroff',
+            'init 0', 'init 6',
+            # Windows destructive commands
+            'del /f /s /q', 'format', 'diskpart',
+            'rd /s /q', 'rmdir /s /q',
+            # Network/download (can fetch malicious scripts)
+            'wget', 'curl -o', 'curl -O',
+            'invoke-webrequest',
+            # Privilege escalation
+            'sudo', 'su -', 'runas',
+            # System modification
+            'crontab', 'systemctl', 'service',
+        ]
         for pattern in dangerous_patterns:
             if pattern in command.lower():
                 raise ValueError(f"Dangerous command pattern detected")
-        
+
         # Check for command chaining that could bypass whitelist
         chain_chars = ['&&', '||', ';', '|']
         for char in chain_chars:
             if char in command:
                 raise ValueError(f"Command chaining not allowed: '{char}'")
-        
+
+        # Check for redirects (can overwrite files)
+        redirect_chars = ['>', '<', '>>']
+        for char in redirect_chars:
+            if char in command:
+                raise ValueError(f"Output redirection not allowed: '{char}'")
+
         return True
     
     def sanitize_string(self, text, max_length=10000):

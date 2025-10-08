@@ -33,7 +33,7 @@ class SystemTools:
                     # Count processor entries
                     cpu_count = cpuinfo.count('processor')
                     info['cpu_count'] = cpu_count
-            except:
+            except (FileNotFoundError, IOError, OSError):
                 info['cpu_count'] = os.cpu_count()
             
             # Get memory info
@@ -49,7 +49,7 @@ class SystemTools:
                             available = int(line.split()[1]) * 1024
                             info['memory_available'] = available
                             info['memory_available_mb'] = round(available / (1024**2), 2)
-            except:
+            except (FileNotFoundError, IOError, OSError, ValueError, IndexError):
                 pass
             
             # Get disk usage
@@ -68,7 +68,7 @@ class SystemTools:
                         info['disk_used'] = parts[2]
                         info['disk_available'] = parts[3]
                         info['disk_usage_percent'] = parts[4]
-            except:
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, IndexError, OSError):
                 pass
             
             # Get uptime
@@ -81,7 +81,7 @@ class SystemTools:
                     hours = int((uptime_seconds % 86400) // 3600)
                     minutes = int((uptime_seconds % 3600) // 60)
                     info['uptime'] = f"{days}d {hours}h {minutes}m"
-            except:
+            except (FileNotFoundError, IOError, OSError, ValueError, IndexError):
                 pass
             
             # Get load average
@@ -92,7 +92,7 @@ class SystemTools:
                     "5min": round(load5, 2),
                     "15min": round(load15, 2)
                 }
-            except:
+            except (OSError, AttributeError):
                 pass
             
             logging.info("Retrieved system information")

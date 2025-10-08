@@ -12,6 +12,7 @@ import time
 import yaml
 import requests
 from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
 
 # Import tools
 from tools.filesystem import FileSystemTools
@@ -49,9 +50,9 @@ except ImportError:
 
 
 class Agent:
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path: str = "config.yaml") -> None:
         """Initialize the agent with configuration"""
-        self.config = self._load_config(config_path)
+        self.config: Dict[str, Any] = self._load_config(config_path)
         self._setup_logging()
         self._setup_workspace()
         
@@ -123,12 +124,12 @@ class Agent:
         logging.info(f"Workspace: {self.config['agent']['workspace']}")
         logging.info(f"Ollama API: {self.api_url}")
     
-    def _load_config(self, config_path):
+    def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
-    
-    def _setup_logging(self):
+
+    def _setup_logging(self) -> None:
         """Configure logging"""
         log_level = getattr(logging, self.config['logging']['level'])
         log_file = self.config['logging']['log_file']
@@ -401,7 +402,7 @@ class Agent:
         ]
         return tools
     
-    def execute_tool(self, tool_name, parameters):
+    def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool by name with given parameters"""
         logging.info(f"Executing tool: {tool_name} with params: {parameters}")
         
@@ -648,11 +649,11 @@ class Agent:
 
             # Process tools
             elif tool_name == "list_processes":
-                result = self.proc_tools.list_processes(
+                result = self.process_tools.list_processes(
                     parameters.get("name_filter", None)
                 )
             elif tool_name == "get_process_info":
-                result = self.proc_tools.get_process_info(
+                result = self.process_tools.get_process_info(
                     parameters.get("pid")
                 )
 
@@ -784,7 +785,7 @@ class Agent:
             logging.debug(f"No .agentrules file found or error loading: {e}")
         return None
 
-    def chat(self, user_message):
+    def chat(self, user_message: str) -> str:
         """Send a message to the agent and get response with tool execution"""
         try:
             # Add to session history

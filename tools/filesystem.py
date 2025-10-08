@@ -6,6 +6,7 @@ Handles file and directory operations with safety checks
 import os
 import logging
 from pathlib import Path
+from tools.utils import get_safe_path
 
 
 class FileSystemTools:
@@ -33,19 +34,10 @@ class FileSystemTools:
         # Initialize diff editor (Phase 4)
         from tools.diff_editor import DiffEditor
         self.diff_editor = DiffEditor(self.workspace)
-    
+
     def _get_safe_path(self, relative_path):
         """Convert relative path to absolute path and validate it's within workspace"""
-        # Resolve the full path
-        full_path = (self.workspace / relative_path).resolve()
-        
-        # Check if path is within workspace
-        try:
-            full_path.relative_to(self.workspace)
-        except ValueError:
-            raise PermissionError(f"Path {relative_path} is outside workspace")
-        
-        return full_path
+        return get_safe_path(self.workspace, relative_path)
     
     def create_folder(self, path):
         """Create a new folder"""

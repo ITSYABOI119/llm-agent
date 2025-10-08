@@ -8,21 +8,17 @@ import csv
 import logging
 from pathlib import Path
 from io import StringIO
+from tools.utils import get_safe_path
 
 
 class DataTools:
     def __init__(self, config):
         self.config = config
         self.workspace = Path(config['agent']['workspace'])
-    
+
     def _get_safe_path(self, relative_path):
         """Convert relative path to absolute path and validate it's within workspace"""
-        full_path = (self.workspace / relative_path).resolve()
-        try:
-            full_path.relative_to(self.workspace)
-        except ValueError:
-            raise PermissionError(f"Path {relative_path} is outside workspace")
-        return full_path
+        return get_safe_path(self.workspace, relative_path)
     
     def parse_json(self, file_path=None, json_string=None):
         """

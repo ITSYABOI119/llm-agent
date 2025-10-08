@@ -29,6 +29,7 @@ from tools.task_analyzer import TaskAnalyzer
 from tools.task_classifier import TaskClassifier  # Phase 2: Smart routing
 from tools.model_router import ModelRouter
 from tools.two_phase_executor import TwoPhaseExecutor
+from tools.parser import ToolParser  # Phase 2: Extracted parser
 from safety.sandbox import Sandbox
 from safety.validators import Validator
 
@@ -96,6 +97,7 @@ class Agent:
             f"http://{self.config['ollama']['host']}:{self.config['ollama']['port']}",
             self.config
         )
+        self.parser = ToolParser(self.config)  # Phase 2: Extracted parser
 
         # Ollama API endpoint
         self.api_url = f"http://{self.config['ollama']['host']}:{self.config['ollama']['port']}"
@@ -1137,118 +1139,24 @@ Output only the tool call:"""
 
             return error_msg
 
-    def parse_tool_calls(self, llm_response):
+    def parse_tool_calls(self, llm_response: str) -> List[Dict[str, Any]]:
         """
-        Parse tool calls from LLM response.
+        Parse tool calls from LLM response using ToolParser.
         Supports:
         1. Direct TOOL: format (qwen2.5-coder, llama, etc.)
         2. Reasoning format with <think> tags (OpenThinker, DeepSeek-R1)
         """
-        import re
+        # Delegate to ToolParser (Phase 2: Extracted module)
+        tool_calls = self.parser.parse(llm_response)
 
-        # Step 1: Strip thinking tags to get action content
-        cleaned_response = self._strip_thinking_tags(llm_response)
-
-        # Step 2: Try standard TOOL: format first
-        tool_calls = self._parse_standard_format(cleaned_response)
-
-        # Step 3: If no tools found and response has thinking, try to extract intent
+        # If no tools found and response has thinking, try to extract intent
         if not tool_calls and '<think>' in llm_response:
             logging.info("No tool calls found after thinking - attempting to extract intent")
             tool_calls = self._extract_tools_from_reasoning(llm_response)
 
         return tool_calls
 
-    def _strip_thinking_tags(self, response):
-        """Remove <think>...</think> blocks to get action content"""
-        import re
-        # Remove all thinking blocks
-        cleaned = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
-        return cleaned.strip()
-
-    def _parse_standard_format(self, text):
-        """Parse TOOL: name | PARAMS: {...} format"""
-        tool_calls = []
-        import re
-        import json
-
-        # Find all TOOL: positions
-        tool_positions = [m.start() for m in re.finditer(r'TOOL:\s*(\w+)', text, re.IGNORECASE)]
-
-        for i, pos in enumerate(tool_positions):
-            # Extract tool name
-            tool_match = re.match(r'TOOL:\s*(\w+)\s*\|\s*PARAMS:\s*', text[pos:], re.IGNORECASE)
-            if not tool_match:
-                continue
-
-            tool_name = tool_match.group(1)
-            json_start = pos + tool_match.end()
-
-            # Find matching closing brace using brace counting
-            brace_count = 0
-            in_string = False
-            escape_next = False
-            json_end = -1
-
-            for j in range(json_start, len(text)):
-                char = text[j]
-
-                if escape_next:
-                    escape_next = False
-                    continue
-
-                if char == '\\':
-                    escape_next = True
-                    continue
-
-                if char == '"' and not escape_next:
-                    in_string = not in_string
-
-                if not in_string:
-                    if char == '{':
-                        brace_count += 1
-                    elif char == '}':
-                        brace_count -= 1
-                        if brace_count == 0:
-                            json_end = j + 1
-                            break
-
-            if json_end == -1:
-                logging.error(f"Could not find closing brace for tool {tool_name}")
-                continue
-
-            params_str = text[json_start:json_end]
-
-            try:
-                # Preprocess to handle common JSON issues
-                # 1. Fix Windows backslashes in paths (e.g., code\file.py -> code\\file.py)
-                # But only if not already escaped
-                import re
-                # Replace single backslashes that aren't already escaped
-                params_str_fixed = re.sub(r'(?<!\\)\\(?!["\\/bfnrt])', r'\\\\', params_str)
-
-                # 2. Try to handle triple-quoted strings (convert """ to ")
-                # This is a heuristic - may not work for all cases
-                params_str_fixed = params_str_fixed.replace('"""', '"')
-
-                params = json.loads(params_str_fixed)
-                tool_calls.append({
-                    'tool': tool_name,
-                    'params': params
-                })
-            except json.JSONDecodeError as e:
-                logging.error(f"Failed to parse tool params for {tool_name}: {params_str[:100]}, error: {e}")
-                # Try one more time without preprocessing
-                try:
-                    params = json.loads(params_str)
-                    tool_calls.append({
-                        'tool': tool_name,
-                        'params': params
-                    })
-                except:
-                    continue
-
-        return tool_calls
+    # NOTE: _strip_thinking_tags and _parse_standard_format moved to ToolParser (Phase 2)
 
     def _extract_tools_from_reasoning(self, response):
         """

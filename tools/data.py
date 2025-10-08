@@ -8,22 +8,23 @@ import csv
 import logging
 from pathlib import Path
 from io import StringIO
+from typing import Dict, Any, Optional, List
 from tools.utils import get_safe_path
 
 
 class DataTools:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.workspace = Path(config['agent']['workspace'])
+        self.workspace: Path = Path(config['agent']['workspace'])
 
-    def _get_safe_path(self, relative_path):
+    def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""
         return get_safe_path(self.workspace, relative_path)
-    
-    def parse_json(self, file_path=None, json_string=None):
+
+    def parse_json(self, file_path: Optional[str] = None, json_string: Optional[str] = None) -> Dict[str, Any]:
         """
-        Parse JSON from file or string
-        Either file_path or json_string must be provided
+        Parse JSON from file or string.
+        Either file_path or json_string must be provided.
         """
         try:
             if file_path:

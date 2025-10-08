@@ -6,14 +6,16 @@ Handles file and directory operations with safety checks
 import os
 import logging
 from pathlib import Path
+from typing import Dict, Any, Optional
 from tools.utils import get_safe_path
+from tools.exceptions import FileOperationError, ValidationError
 
 
 class FileSystemTools:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.workspace = Path(config['agent']['workspace'])
-        self.max_file_size = config['security']['max_file_size']
+        self.workspace: Path = Path(config['agent']['workspace'])
+        self.max_file_size: int = config['security']['max_file_size']
 
         # Initialize linter if enabled
         self.linter = None
@@ -35,11 +37,11 @@ class FileSystemTools:
         from tools.diff_editor import DiffEditor
         self.diff_editor = DiffEditor(self.workspace)
 
-    def _get_safe_path(self, relative_path):
+    def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""
         return get_safe_path(self.workspace, relative_path)
-    
-    def create_folder(self, path):
+
+    def create_folder(self, path: str) -> Dict[str, Any]:
         """Create a new folder"""
         try:
             full_path = self._get_safe_path(path)
@@ -54,7 +56,7 @@ class FileSystemTools:
             logging.error(f"Error creating folder: {e}")
             return {"success": False, "error": str(e)}
     
-    def write_file(self, path, content):
+    def write_file(self, path: str, content: str) -> Dict[str, Any]:
         """Write content to a file"""
         try:
             # Check file size
@@ -109,7 +111,7 @@ class FileSystemTools:
             logging.error(f"Error writing file: {e}")
             return {"success": False, "error": str(e)}
     
-    def read_file(self, path):
+    def read_file(self, path: str) -> Dict[str, Any]:
         """Read contents of a file"""
         try:
             full_path = self._get_safe_path(path)
@@ -172,8 +174,9 @@ class FileSystemTools:
             logging.error(f"Error listing directory: {e}")
             return {"success": False, "error": str(e)}
     
-    def edit_file(self, path, mode="append", content="", search="", replace="",
-                   line_number=None, start_line=None, end_line=None, insert_after="", insert_before=""):
+    def edit_file(self, path: str, mode: str = "append", content: str = "", search: str = "", replace: str = "",
+                   line_number: Optional[int] = None, start_line: Optional[int] = None, end_line: Optional[int] = None,
+                   insert_after: str = "", insert_before: str = "") -> Dict[str, Any]:
         """
         Edit an existing file with advanced editing modes
 
@@ -727,7 +730,7 @@ Return ONLY the complete modified file content, no explanations."""
             logging.error(f"Error in diff_edit: {e}")
             return {"success": False, "error": str(e)}
 
-    def delete_file(self, path):
+    def delete_file(self, path: str) -> Dict[str, Any]:
         """Delete a file"""
         try:
             full_path = self._get_safe_path(path)

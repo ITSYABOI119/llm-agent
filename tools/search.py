@@ -7,23 +7,24 @@ import os
 import re
 import logging
 from pathlib import Path
+from typing import Dict, Any, List
 from tools.utils import get_safe_path
 
 
 class SearchTools:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.workspace = Path(config['agent']['workspace'])
-        self.max_results = 100
-        self.max_file_size = config['security']['max_file_size']
+        self.workspace: Path = Path(config['agent']['workspace'])
+        self.max_results: int = 100
+        self.max_file_size: int = config['security']['max_file_size']
 
-    def _get_safe_path(self, relative_path):
+    def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""
         return get_safe_path(self.workspace, relative_path)
-    
-    def find_files(self, pattern="*", path="."):
+
+    def find_files(self, pattern: str = "*", path: str = ".") -> Dict[str, Any]:
         """
-        Find files matching a pattern
+        Find files matching a pattern.
         pattern: glob pattern like *.py, test_*, etc.
         path: directory to search in (relative to workspace)
         """

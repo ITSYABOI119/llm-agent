@@ -394,6 +394,16 @@ self.log_query.query_slow_operations(threshold=1.0)
 - Never use absolute paths in tool calls; sandbox validation will reject them
 
 ## Recent Improvements
+
+### Latest (2025-01-08) - Critical Security & Quality Fixes
+- ✅ **SECURITY**: Fixed command injection vulnerability (shell=False in commands.py)
+- ✅ **SECURITY**: Expanded dangerous command patterns (Windows, Linux, network, privilege escalation)
+- ✅ **SECURITY**: Added output redirection prevention (>, <, >>)
+- ✅ **BUG FIX**: Fixed process_tools bug in agent.py:651
+- ✅ **CODE QUALITY**: Added type hints to core agent.py methods
+- ✅ **CODE QUALITY**: Replaced bare except blocks with specific exceptions
+
+### Previous Features
 - ✅ Hybrid multi-model system with intelligent routing
 - ✅ Two-phase execution (plan → execute workflow)
 - ✅ Advanced file editing with 8 modes (Phases 1-5)

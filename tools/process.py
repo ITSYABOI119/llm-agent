@@ -7,16 +7,34 @@ import subprocess
 import logging
 import signal
 import psutil
+from typing import Dict, Any, List, Optional
 
 
 class ProcessTools:
-    def __init__(self, config):
-        self.config = config
-    
-    def list_processes(self, filter_name=None):
+    """
+    Manage system processes using psutil.
+
+    Provides tools to list, monitor, and query process information.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
         """
-        List running processes
-        filter_name: optional filter by process name
+        Initialize process tools.
+
+        Args:
+            config: Agent configuration dictionary
+        """
+        self.config = config
+
+    def list_processes(self, filter_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        List running processes.
+
+        Args:
+            filter_name: Optional filter by process name (case-insensitive)
+
+        Returns:
+            Dict with success status, count, and list of processes
         """
         try:
             processes = []
@@ -53,8 +71,16 @@ class ProcessTools:
             logging.error(f"Error listing processes: {e}")
             return {"success": False, "error": str(e)}
     
-    def get_process_info(self, pid):
-        """Get detailed information about a specific process"""
+    def get_process_info(self, pid: int) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific process.
+
+        Args:
+            pid: Process ID to query
+
+        Returns:
+            Dict with process information or error
+        """
         try:
             pid = int(pid)
             proc = psutil.Process(pid)
@@ -83,8 +109,16 @@ class ProcessTools:
             logging.error(f"Error getting process info: {e}")
             return {"success": False, "error": str(e)}
     
-    def check_process_running(self, name):
-        """Check if a process with given name is running"""
+    def check_process_running(self, name: str) -> Dict[str, Any]:
+        """
+        Check if a process with given name is running.
+
+        Args:
+            name: Process name to search for (case-insensitive)
+
+        Returns:
+            Dict with running status, count, and list of matching instances
+        """
         try:
             running = []
             for proc in psutil.process_iter(['pid', 'name']):

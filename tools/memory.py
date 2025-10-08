@@ -7,18 +7,36 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
 
 class MemorySystem:
-    def __init__(self, config):
+    """
+    Long-term memory system for storing facts across sessions.
+
+    Persists key-value pairs organized by category with access tracking.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize memory system.
+
+        Args:
+            config: Agent configuration dictionary
+        """
         self.config = config
-        self.enabled = config['agent'].get('enable_memory', False)
-        self.memory_file = Path(config['agent'].get('memory_file', 'logs/agent_memory.json'))
-        self.max_entries = config['agent'].get('max_memory_entries', 1000)
-        self.memory = self._load_memory()
-    
-    def _load_memory(self):
-        """Load memory from file"""
+        self.enabled: bool = config['agent'].get('enable_memory', False)
+        self.memory_file: Path = Path(config['agent'].get('memory_file', 'logs/agent_memory.json'))
+        self.max_entries: int = config['agent'].get('max_memory_entries', 1000)
+        self.memory: Dict[str, Dict[str, Any]] = self._load_memory()
+
+    def _load_memory(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Load memory from file.
+
+        Returns:
+            Dict of categories with key-value pairs
+        """
         if not self.enabled:
             return {}
         
@@ -31,20 +49,30 @@ class MemorySystem:
                 return {}
         return {}
     
-    def _save_memory(self):
-        """Save memory to file"""
+    def _save_memory(self) -> None:
+        """Save memory to file."""
         if not self.enabled:
             return
-        
+
         try:
             self.memory_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.memory_file, 'w') as f:
                 json.dump(self.memory, f, indent=2)
         except Exception as e:
             logging.error(f"Error saving memory: {e}")
-    
-    def store(self, key, value, category="general"):
-        """Store a fact in memory"""
+
+    def store(self, key: str, value: Any, category: str = "general") -> Dict[str, Any]:
+        """
+        Store a fact in memory.
+
+        Args:
+            key: Memory key
+            value: Value to store
+            category: Category to organize memory (default: "general")
+
+        Returns:
+            Dict with success status and message
+        """
         if not self.enabled:
             return {"success": False, "error": "Memory system disabled"}
         
@@ -67,8 +95,17 @@ class MemorySystem:
             "message": f"Stored {key} in {category}"
         }
     
-    def retrieve(self, key, category="general"):
-        """Retrieve a fact from memory"""
+    def retrieve(self, key: str, category: str = "general") -> Dict[str, Any]:
+        """
+        Retrieve a fact from memory.
+
+        Args:
+            key: Memory key to retrieve
+            category: Category to search in
+
+        Returns:
+            Dict with success status, key, value, and timestamp
+        """
         if not self.enabled:
             return {"success": False, "error": "Memory system disabled"}
         
@@ -91,8 +128,17 @@ class MemorySystem:
             "error": f"No memory found for {category}/{key}"
         }
     
-    def search(self, query, category=None):
-        """Search memory for matching keys or values"""
+    def search(self, query: str, category: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Search memory for matching keys or values.
+
+        Args:
+            query: Search query (case-insensitive)
+            category: Optional category to limit search
+
+        Returns:
+            Dict with success status, results list, and count
+        """
         if not self.enabled:
             return {"success": False, "error": "Memory system disabled"}
         
@@ -124,8 +170,16 @@ class MemorySystem:
             "count": len(results)
         }
     
-    def list_all(self, category=None):
-        """List all memories, optionally filtered by category"""
+    def list_all(self, category: Optional[str] = None) -> Dict[str, Any]:
+        """
+        List all memories, optionally filtered by category.
+
+        Args:
+            category: Optional category filter
+
+        Returns:
+            Dict with memories, total entries, and categories list
+        """
         if not self.enabled:
             return {"success": False, "error": "Memory system disabled"}
         
@@ -143,8 +197,17 @@ class MemorySystem:
             "categories": list(memories.keys())
         }
     
-    def delete(self, key, category="general"):
-        """Delete a memory entry"""
+    def delete(self, key: str, category: str = "general") -> Dict[str, Any]:
+        """
+        Delete a memory entry.
+
+        Args:
+            key: Memory key to delete
+            category: Category containing the key
+
+        Returns:
+            Dict with success status and message
+        """
         if not self.enabled:
             return {"success": False, "error": "Memory system disabled"}
         
@@ -162,8 +225,8 @@ class MemorySystem:
             "error": f"Memory {category}/{key} not found"
         }
     
-    def _prune_memory(self):
-        """Prune old or least-accessed memories if limit exceeded"""
+    def _prune_memory(self) -> None:
+        """Prune old or least-accessed memories if limit exceeded."""
         total = sum(len(entries) for entries in self.memory.values())
         
         if total > self.max_entries:
@@ -188,8 +251,13 @@ class MemorySystem:
             
             logging.info(f"Pruned {to_remove} memory entries")
     
-    def get_context_summary(self):
-        """Get a summary of stored memories for LLM context"""
+    def get_context_summary(self) -> str:
+        """
+        Get a summary of stored memories for LLM context.
+
+        Returns:
+            Formatted string summary of memories (up to 10 per category)
+        """
         if not self.enabled or not self.memory:
             return ""
         

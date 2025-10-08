@@ -7,6 +7,7 @@ import logging
 import platform
 import time
 from tools.utils import format_bytes
+from tools.cache import cached
 
 try:
     import psutil
@@ -20,6 +21,7 @@ class SystemTools:
     def __init__(self, config):
         self.config = config
 
+    @cached(ttl=30)  # Cache for 30 seconds - system info changes slowly
     def get_system_info(self):
         """Get comprehensive system information (cross-platform with psutil)"""
         try:

@@ -6,6 +6,8 @@ Network connectivity and request functionality
 import subprocess
 import logging
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import socket
 import platform
 from typing import Dict, Any, Optional
@@ -16,6 +18,28 @@ class NetworkTools:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.timeout: int = 10
+
+        # Create session with connection pooling and retry logic
+        self._session = requests.Session()
+
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=3,  # Retry up to 3 times
+            backoff_factor=0.3,  # Wait 0.3, 0.6, 1.2 seconds between retries
+            status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
+            allowed_methods=["HEAD", "GET", "OPTIONS"]  # Only retry safe methods
+        )
+
+        # Configure connection pooling (max 10 connections per host)
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=10,
+            pool_maxsize=10
+        )
+
+        # Mount adapter for both HTTP and HTTPS
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
 
     def ping(self, host: str, count: int = 4) -> Dict[str, Any]:
         """
@@ -101,8 +125,9 @@ class NetworkTools:
                 return {"success": False, "error": f"Unsupported method: {method}"}
             
             logging.info(f"Making {method} request to {url}")
-            
-            response = requests.request(
+
+            # Use session for connection pooling
+            response = self._session.request(
                 method=method,
                 url=url,
                 headers=headers,
@@ -191,3 +216,9 @@ class NetworkTools:
         except Exception as e:
             logging.error(f"Error getting IP info: {e}")
             return {"success": False, "error": str(e)}
+
+    def close(self) -> None:
+        """Close the HTTP session and release connections"""
+        if hasattr(self, '_session'):
+            self._session.close()
+            logging.debug("Closed HTTP session and released connections")

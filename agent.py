@@ -58,16 +58,16 @@ class Agent:
         self._setup_logging()
         self._setup_workspace()
         
-        # Initialize tools
-        self.fs_tools = FileSystemTools(self.config)
-        self.cmd_tools = CommandTools(self.config)
-        self.sys_tools = SystemTools(self.config)
-        self.search_tools = SearchTools(self.config)
-        self.process_tools = ProcessTools(self.config)
-        self.network_tools = NetworkTools(self.config)
-        self.data_tools = DataTools(self.config)
-        self.memory = MemorySystem(self.config)
-        self.history = SessionHistory(self.config)
+        # Lazy-load tools (initialize on first use)
+        self._fs_tools = None
+        self._cmd_tools = None
+        self._sys_tools = None
+        self._search_tools = None
+        self._process_tools = None
+        self._network_tools = None
+        self._data_tools = None
+        self._memory = None
+        self._history = None
         
         # Initialize enhanced logging
         self.log_manager = LogManager(self.config)
@@ -127,7 +127,80 @@ class Agent:
         logging.info(f"Agent initialized: {self.config['agent']['name']}")
         logging.info(f"Workspace: {self.config['agent']['workspace']}")
         logging.info(f"Ollama API: {self.api_url}")
-    
+
+    # Lazy loading properties for tools
+    @property
+    def fs_tools(self):
+        """Lazy-load FileSystemTools"""
+        if self._fs_tools is None:
+            self._fs_tools = FileSystemTools(self.config)
+            logging.debug("Lazy-loaded FileSystemTools")
+        return self._fs_tools
+
+    @property
+    def cmd_tools(self):
+        """Lazy-load CommandTools"""
+        if self._cmd_tools is None:
+            self._cmd_tools = CommandTools(self.config)
+            logging.debug("Lazy-loaded CommandTools")
+        return self._cmd_tools
+
+    @property
+    def sys_tools(self):
+        """Lazy-load SystemTools"""
+        if self._sys_tools is None:
+            self._sys_tools = SystemTools(self.config)
+            logging.debug("Lazy-loaded SystemTools")
+        return self._sys_tools
+
+    @property
+    def search_tools(self):
+        """Lazy-load SearchTools"""
+        if self._search_tools is None:
+            self._search_tools = SearchTools(self.config)
+            logging.debug("Lazy-loaded SearchTools")
+        return self._search_tools
+
+    @property
+    def process_tools(self):
+        """Lazy-load ProcessTools"""
+        if self._process_tools is None:
+            self._process_tools = ProcessTools(self.config)
+            logging.debug("Lazy-loaded ProcessTools")
+        return self._process_tools
+
+    @property
+    def network_tools(self):
+        """Lazy-load NetworkTools"""
+        if self._network_tools is None:
+            self._network_tools = NetworkTools(self.config)
+            logging.debug("Lazy-loaded NetworkTools")
+        return self._network_tools
+
+    @property
+    def data_tools(self):
+        """Lazy-load DataTools"""
+        if self._data_tools is None:
+            self._data_tools = DataTools(self.config)
+            logging.debug("Lazy-loaded DataTools")
+        return self._data_tools
+
+    @property
+    def memory(self):
+        """Lazy-load MemorySystem"""
+        if self._memory is None:
+            self._memory = MemorySystem(self.config)
+            logging.debug("Lazy-loaded MemorySystem")
+        return self._memory
+
+    @property
+    def history(self):
+        """Lazy-load SessionHistory"""
+        if self._history is None:
+            self._history = SessionHistory(self.config)
+            logging.debug("Lazy-loaded SessionHistory")
+        return self._history
+
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         with open(config_path, 'r') as f:

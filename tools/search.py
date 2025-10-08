@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List
 from tools.utils import get_safe_path
+from tools.cache import Cache
 
 
 class SearchTools:
@@ -17,6 +18,8 @@ class SearchTools:
         self.workspace: Path = Path(config['agent']['workspace'])
         self.max_results: int = 100
         self.max_file_size: int = config['security']['max_file_size']
+        # Cache for file searches (60 second TTL)
+        self._search_cache = Cache(ttl=60)
 
     def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""
@@ -28,6 +31,13 @@ class SearchTools:
         pattern: glob pattern like *.py, test_*, etc.
         path: directory to search in (relative to workspace)
         """
+        # Check cache first
+        cache_key = f"find_files:{pattern}:{path}"
+        cached_result = self._search_cache.get(cache_key)
+        if cached_result is not None:
+            logging.debug(f"Cache hit for file search: {pattern} in {path}")
+            return cached_result
+
         try:
             search_path = self._get_safe_path(path)
             
@@ -51,8 +61,8 @@ class SearchTools:
                         break
             
             logging.info(f"Found {len(matches)} files matching '{pattern}' in {path}")
-            
-            return {
+
+            result = {
                 "success": True,
                 "pattern": pattern,
                 "search_path": str(search_path),
@@ -60,6 +70,11 @@ class SearchTools:
                 "count": len(matches),
                 "truncated": len(matches) >= self.max_results
             }
+
+            # Cache the result
+            self._search_cache.set(cache_key, result)
+
+            return result
         
         except Exception as e:
             logging.error(f"Error searching files: {e}")

@@ -6,7 +6,7 @@ Optimized for Windows + Ollama (2.5s swap time reality)
 import logging
 import requests
 import time
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 
 class SmartModelManager:

@@ -38,6 +38,9 @@ from safety.validators import Validator
 from tools.context_gatherer import ContextGatherer
 from tools.verifier import ActionVerifier
 from tools.model_manager import SmartModelManager
+
+# Phase 6: Enhanced observability
+from tools.metrics import MetricsCollector, get_global_metrics
 from tools.token_counter import TokenCounter, ContextCompressor
 from tools.structured_planner import StructuredPlanner
 from tools.progressive_retry import ProgressiveRetrySystem  # Phase 3
@@ -73,6 +76,9 @@ class Agent:
         self.log_manager = LogManager(self.config)
         self.log_analyzer = LogAnalyzer(self.config)
         self.log_query = LogQuery(self.config)
+
+        # Phase 6: Initialize metrics collection
+        self.metrics = get_global_metrics()
 
         # Initialize RAG indexer (optional)
         if RAG_AVAILABLE:
@@ -483,11 +489,23 @@ class Agent:
         """Execute a tool by name with given parameters"""
         logging.info(f"Executing tool: {tool_name} with params: {parameters}")
 
+        # Phase 6: Start metrics tracking
+        start_time = time.time()
+
         # Check rate limits
         if not self.rate_limiter.check_rate_limit(tool_name):
+            error_msg = f"Rate limit exceeded for {tool_name}. Please try again later."
+            # Record failed execution
+            self.metrics.record_tool_execution(
+                tool_name=tool_name,
+                duration=time.time() - start_time,
+                success=False,
+                parameters=parameters,
+                error=error_msg
+            )
             return {
                 "success": False,
-                "error": f"Rate limit exceeded for {tool_name}. Please try again later."
+                "error": error_msg
             }
 
         # Check resource usage
@@ -499,9 +517,8 @@ class Agent:
                 "error": f"Resource limit exceeded: {resource_error}"
             }
 
-        # Log tool start and track execution time
+        # Log tool start (start_time already set above for metrics)
         self.log_manager.log_tool_start(tool_name, parameters)
-        start_time = time.time()
 
         try:
             # File system tools
@@ -837,12 +854,31 @@ class Agent:
             execution_time = time.time() - start_time
             logging.info(f"Tool {tool_name} completed in {execution_time:.2f}s")
 
+            # Phase 6: Record metrics
+            self.metrics.record_tool_execution(
+                tool_name=tool_name,
+                duration=execution_time,
+                success=result.get("success", False),
+                parameters=parameters,
+                error=result.get("error") if not result.get("success") else None
+            )
+
             return result
         except Exception as e:
             logging.error(f"Error executing tool {tool_name}: {e}")
             execution_time = time.time() - start_time
             error_result = {"success": False, "error": str(e)}
             logging.error(f"Tool {tool_name} failed after {execution_time:.2f}s")
+
+            # Phase 6: Record failed execution
+            self.metrics.record_tool_execution(
+                tool_name=tool_name,
+                duration=execution_time,
+                success=False,
+                parameters=parameters,
+                error=str(e)
+            )
+
             return error_result
 
     def _reindex_file(self, file_path):
@@ -1507,9 +1543,22 @@ def main():
 
             if user_input.lower() in ['quit', 'exit', 'q']:
                 print("\nShutting down agent...")
+                # Export metrics before exit
+                agent.metrics.export_metrics()
+                print("Metrics exported to logs/metrics.json")
                 break
 
             if not user_input:
+                continue
+
+            # Phase 6: Special commands for metrics
+            if user_input.lower() == '/metrics':
+                print("\n" + agent.metrics.generate_report())
+                continue
+
+            if user_input.lower() == '/metrics export':
+                agent.metrics.export_metrics()
+                print("Metrics exported to logs/metrics.json")
                 continue
 
             # Send request to agent

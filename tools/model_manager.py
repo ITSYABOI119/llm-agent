@@ -22,7 +22,7 @@ class SmartModelManager:
     def __init__(self, api_url: str, config: Dict):
         self.api_url = api_url
         self.config = config
-        self.current_vram_model = None
+        self.current_vram_model: Optional[str] = None
 
         # Get keep_alive setting (default: 60 minutes)
         self.keep_alive = config.get('ollama', {}).get('keep_alive', '60m')
@@ -38,7 +38,7 @@ class SmartModelManager:
         self.swap_count = 0
         self.total_swap_time = 0.0
 
-    def ensure_in_vram(self, model: str, phase: str = None) -> bool:
+    def ensure_in_vram(self, model: str, phase: Optional[str] = None) -> bool:
         """
         Ensure model is loaded in VRAM
 

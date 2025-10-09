@@ -20,9 +20,12 @@ except ImportError:
 class SystemTools:
     def __init__(self, config):
         self.config = config
+        # Get cache TTL from config (default 30s)
+        cache_ttl = config.get('performance', {}).get('cache', {}).get('system_info_ttl', 30)
+        # Apply caching to get_system_info method
+        self.get_system_info = cached(ttl=cache_ttl)(self._get_system_info_uncached)
 
-    @cached(ttl=30)  # Cache for 30 seconds - system info changes slowly
-    def get_system_info(self):
+    def _get_system_info_uncached(self):
         """Get comprehensive system information (cross-platform with psutil)"""
         try:
             info = {

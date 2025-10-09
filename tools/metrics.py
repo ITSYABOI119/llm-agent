@@ -22,15 +22,19 @@ class MetricsCollector:
     - Error patterns
     """
 
-    def __init__(self, output_dir: str = "logs"):
+    def __init__(self, output_dir: str = "logs", config: Optional[Dict[str, Any]] = None):
         """
         Initialize metrics collector.
 
         Args:
             output_dir: Directory to store metrics files
+            config: Optional configuration dict
         """
+        self.config = config or {}
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Get slow threshold from config (default 1000ms)
+        self.slow_threshold_ms = self.config.get('metrics', {}).get('slow_threshold_ms', 1000)
 
         self.metrics_file = self.output_dir / "metrics.json"
 
@@ -211,16 +215,18 @@ class MetricsCollector:
         """
         return self.error_log[-limit:]
 
-    def get_slow_operations(self, threshold_ms: float = 1000) -> List[Dict[str, Any]]:
+    def get_slow_operations(self, threshold_ms: Optional[float] = None) -> List[Dict[str, Any]]:
         """
         Get operations that exceeded time threshold.
 
         Args:
-            threshold_ms: Threshold in milliseconds
+            threshold_ms: Threshold in milliseconds (uses config value if not specified)
 
         Returns:
             List of slow operations
         """
+        if threshold_ms is None:
+            threshold_ms = self.slow_threshold_ms
         threshold_seconds = threshold_ms / 1000
         slow_ops = [
             {
@@ -304,9 +310,9 @@ class MetricsCollector:
             report.append("")
 
         # Slow operations
-        slow_ops = self.get_slow_operations(1000)
+        slow_ops = self.get_slow_operations()  # Uses configured threshold
         if slow_ops:
-            report.append(f"Slow Operations (>1000ms): {len(slow_ops)}")
+            report.append(f"Slow Operations (>{self.slow_threshold_ms}ms): {len(slow_ops)}")
             for op in slow_ops[:5]:
                 report.append(f"  - {op['tool']}: {op['duration_ms']}ms")
 

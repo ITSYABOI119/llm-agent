@@ -18,8 +18,9 @@ class SearchTools:
         self.workspace: Path = Path(config['agent']['workspace'])
         self.max_results: int = 100
         self.max_file_size: int = config['security']['max_file_size']
-        # Cache for file searches (60 second TTL)
-        self._search_cache = Cache(ttl=60)
+        # Cache for file searches (TTL from config, default 60s)
+        cache_ttl = config.get('performance', {}).get('cache', {}).get('file_search_ttl', 60)
+        self._search_cache = Cache(ttl=cache_ttl)
 
     def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""

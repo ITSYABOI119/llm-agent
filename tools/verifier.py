@@ -40,7 +40,8 @@ class ActionVerifier:
         # Check basic success
         if not result.get('success'):
             verification['verified'] = False
-            verification['issues'].append(f"Tool reported failure: {result.get('error', 'Unknown')}")
+            issues: List[str] = verification['issues']  # type: ignore
+            issues.append(f"Tool reported failure: {result.get('error', 'Unknown')}")
             verification['suggestion'] = "Retry with corrected parameters"
             return verification
 
@@ -219,11 +220,14 @@ class ActionVerifier:
             verification = self.verify_action(tool_name, params, result)
 
             if verification['verified']:
-                results['verified'] += 1
+                verified_count: int = results['verified']  # type: ignore
+                results['verified'] = verified_count + 1
             else:
-                results['failed'] += 1
+                failed_count: int = results['failed']  # type: ignore
+                results['failed'] = failed_count + 1
                 results['all_verified'] = False
-                results['issues'].append({
+                issues_list: List[Dict[str, Any]] = results['issues']  # type: ignore
+                issues_list.append({
                     'tool': tool_name,
                     'params': params,
                     'issues': verification['issues'],

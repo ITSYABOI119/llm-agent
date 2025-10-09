@@ -5,6 +5,7 @@ Network connectivity and request functionality
 
 import subprocess
 import logging
+import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -17,24 +18,30 @@ from tools.exceptions import NetworkError
 class NetworkTools:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.timeout: int = 10
+        # Get network settings from config (with defaults)
+        network_config = config.get('performance', {}).get('network', {})
+        self.timeout: int = network_config.get('timeout', 10)
+        max_retries: int = network_config.get('max_retries', 3)
+        backoff_factor: float = network_config.get('backoff_factor', 0.3)
+        pool_connections: int = network_config.get('pool_connections', 10)
+        pool_maxsize: int = network_config.get('pool_maxsize', 10)
 
         # Create session with connection pooling and retry logic
         self._session = requests.Session()
 
         # Configure retry strategy
         retry_strategy = Retry(
-            total=3,  # Retry up to 3 times
-            backoff_factor=0.3,  # Wait 0.3, 0.6, 1.2 seconds between retries
+            total=max_retries,
+            backoff_factor=backoff_factor,
             status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
             allowed_methods=["HEAD", "GET", "OPTIONS"]  # Only retry safe methods
         )
 
-        # Configure connection pooling (max 10 connections per host)
+        # Configure connection pooling
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=10
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize
         )
 
         # Mount adapter for both HTTP and HTTPS

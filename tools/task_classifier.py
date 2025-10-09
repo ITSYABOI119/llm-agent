@@ -5,7 +5,7 @@ Implements Phase 2: Intelligent routing to minimize 2.5s swap overhead
 
 import re
 import logging
-from typing import Dict, List
+from typing import Dict, List, Any
 
 
 class TaskClassifier:
@@ -16,9 +16,9 @@ class TaskClassifier:
     Only use openthinker when quality gain justifies 2.5s swap cost
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # SIMPLE: Single-file, straightforward operations (qwen only)
-        self.simple_patterns = [
+        self.simple_patterns: List[str] = [
             'add a function',
             'add function',
             'fix typo',
@@ -39,13 +39,13 @@ class TaskClassifier:
             'find file'
         ]
 
-        self.simple_keywords = [
+        self.simple_keywords: List[str] = [
             'typo', 'rename', 'delete', 'remove', 'read', 'show',
             'list', 'search', 'find', 'display', 'print'
         ]
 
         # STANDARD: Multi-step but well-defined (qwen only)
-        self.standard_patterns = [
+        self.standard_patterns: List[str] = [
             'build a component',
             'create a component',
             'refactor this',
@@ -60,13 +60,13 @@ class TaskClassifier:
             'improve function'
         ]
 
-        self.standard_keywords = [
+        self.standard_keywords: List[str] = [
             'refactor', 'debug', 'test', 'component', 'module',
             'error handling', 'validation', 'logging'
         ]
 
         # COMPLEX: Requires architectural thinking (openthinker worth it)
-        self.complex_patterns = [
+        self.complex_patterns: List[str] = [
             'design architecture',
             'design system',
             'create application',
@@ -82,7 +82,7 @@ class TaskClassifier:
             'design pattern'
         ]
 
-        self.complex_keywords = [
+        self.complex_keywords: List[str] = [
             'architecture', 'design', 'algorithm', 'system',
             'application', 'framework', 'platform', 'solution',
             'strategy', 'approach', 'methodology', 'authentication',
@@ -90,20 +90,20 @@ class TaskClassifier:
         ]
 
         # Creative indicators (suggests complex)
-        self.creative_keywords = [
+        self.creative_keywords: List[str] = [
             'creative', 'unique', 'modern', 'beautiful', 'stylish',
             'innovative', 'custom', 'original', 'artistic', 'elegant'
         ]
 
         # Multi-file patterns
-        self.multi_file_patterns = [
+        self.multi_file_patterns: List[str] = [
             r'\b(?:html|css|js)\b.*\b(?:and|with|,)\b.*\b(?:html|css|js)\b',
             r'\b\d+\s+files?\b',
             r'\bwith\s+(?:html|css|js|styling|scripts?)\b',
             r'\binclude.*(?:html|css|js)\b'
         ]
 
-    def classify(self, user_message: str) -> Dict:
+    def classify(self, user_message: str) -> Dict[str, Any]:
         """
         Classify task to determine optimal routing strategy
 
@@ -368,7 +368,7 @@ class TaskClassifier:
         else:
             return base_confidence
 
-    def get_statistics_summary(self) -> Dict:
+    def get_statistics_summary(self) -> Dict[str, int]:
         """Get summary of classification patterns"""
         return {
             'simple_patterns': len(self.simple_patterns),

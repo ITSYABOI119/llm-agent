@@ -134,6 +134,27 @@ linter:
   severity_threshold: "warning"  # Minimum severity to report
   auto_fix: false  # Future: automatically fix simple issues
 
+# Performance & Caching Settings (Phase 4)
+performance:
+  cache:
+    system_info_ttl: 30  # Cache system info for 30 seconds
+    file_search_ttl: 60  # Cache file search results for 60 seconds
+    default_ttl: 300     # Default cache TTL (5 minutes)
+
+  network:
+    max_retries: 3         # HTTP retry attempts
+    backoff_factor: 0.3    # Wait time between retries (0.3, 0.6, 1.2 seconds)
+    pool_connections: 10   # HTTP connection pool size per host
+    pool_maxsize: 10       # Maximum pool size
+    timeout: 10            # Request timeout in seconds
+
+# Metrics & Observability Settings (Phase 6)
+metrics:
+  enabled: true
+  slow_threshold_ms: 1000  # Operations slower than this are flagged
+  export_on_shutdown: true
+  output_dir: "logs"       # Directory for metrics exports
+
 # Logging Settings
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR

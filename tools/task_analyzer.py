@@ -101,7 +101,7 @@ class TaskAnalyzer:
         if max_score == 0:
             return 'query'  # Default
 
-        return max(scores, key=scores.get)
+        return max(scores, key=lambda k: scores[k])
 
     def _estimate_tool_calls(self, message: str, is_multi_file: bool) -> int:
         """Estimate number of tool calls needed"""

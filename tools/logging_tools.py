@@ -10,17 +10,18 @@ import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
+from typing import Dict, Any, List, Optional
 
 
 class LogManager:
     """
     Enhanced log manager with structured logging and metrics
     """
-    def __init__(self, config):
-        self.config = config
-        self.log_file = Path(config['logging']['log_file'])
-        self.max_size = config['logging'].get('max_log_size', 10485760)
-        self.backup_count = config['logging'].get('backup_count', 5)
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.config: Dict[str, Any] = config
+        self.log_file: Path = Path(config['logging']['log_file'])
+        self.max_size: int = config['logging'].get('max_log_size', 10485760)
+        self.backup_count: int = config['logging'].get('backup_count', 5)
         
         # Ensure log directory exists
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -30,15 +31,15 @@ class LogManager:
             self.log_file.touch()
         
         # Metrics storage
-        self.tool_metrics = defaultdict(lambda: {
+        self.tool_metrics: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
             'total_calls': 0,
             'successful_calls': 0,
             'failed_calls': 0,
             'total_execution_time': 0.0,
             'last_call': None
         })
-    
-    def _check_size_and_rotate(self):
+
+    def _check_size_and_rotate(self) -> None:
         """Check file size and rotate if needed"""
         if not self.log_file.exists():
             return
@@ -46,7 +47,7 @@ class LogManager:
         if self.log_file.stat().st_size > self.max_size:
             self._rotate_numbered_backups()
     
-    def _rotate_numbered_backups(self):
+    def _rotate_numbered_backups(self) -> None:
         """Rotate log files with numbered backups"""
         # Remove oldest backup if at limit
         oldest = self.log_file.parent / f"{self.log_file.name}.{self.backup_count}"
@@ -66,39 +67,39 @@ class LogManager:
             shutil.copy2(self.log_file, backup)
             self.log_file.write_text('')
     
-    def log_info(self, message):
+    def log_info(self, message: str) -> None:
         """Log info message"""
         self._check_size_and_rotate()
         logging.info(message)
-    
-    def log_warning(self, message):
+
+    def log_warning(self, message: str) -> None:
         """Log warning message"""
         self._check_size_and_rotate()
         logging.warning(message)
-    
-    def log_error(self, message):
+
+    def log_error(self, message: str) -> None:
         """Log error message"""
         self._check_size_and_rotate()
         logging.error(message)
-    
-    def log_debug(self, message):
+
+    def log_debug(self, message: str) -> None:
         """Log debug message"""
         self._check_size_and_rotate()
         logging.debug(message)
-    
-    def log_structured(self, level, message, context=None, metadata=None):
+
+    def log_structured(self, level: str, message: str, context: Optional[Dict[str, Any]] = None, metadata: Optional[Dict[str, Any]] = None) -> None:
         """
         Log structured JSON entry
         """
-        entry = {
+        entry: Dict[str, Any] = {
             'timestamp': datetime.now().isoformat(),
             'level': level,
             'message': message
         }
-        
+
         if context:
             entry['context'] = context
-        
+
         if metadata:
             entry['metadata'] = metadata
         
@@ -112,7 +113,7 @@ class LogManager:
         except Exception as e:
             logging.error(f"Failed to write structured log: {e}")
     
-    def get_structured_logs(self, limit=100):
+    def get_structured_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Read structured logs
         """
@@ -134,7 +135,7 @@ class LogManager:
         
         return logs[-limit:]
     
-    def log_tool_start(self, tool_name, parameters):
+    def log_tool_start(self, tool_name: str, parameters: Dict[str, Any]) -> None:
         """Log tool execution start"""
         self.log_structured(
             'INFO',
@@ -146,7 +147,7 @@ class LogManager:
             }
         )
     
-    def log_tool_success(self, tool_name, parameters, execution_time, result):
+    def log_tool_success(self, tool_name: str, parameters: Dict[str, Any], execution_time: float, result: Any) -> None:
         """Log successful tool execution"""
         # Update metrics
         metrics = self.tool_metrics[tool_name]
@@ -167,7 +168,7 @@ class LogManager:
             }
         )
     
-    def log_tool_failure(self, tool_name, parameters, execution_time, error):
+    def log_tool_failure(self, tool_name: str, parameters: Dict[str, Any], execution_time: float, error: Exception) -> None:
         """Log failed tool execution"""
         # Update metrics
         metrics = self.tool_metrics[tool_name]
@@ -188,7 +189,7 @@ class LogManager:
             }
         )
     
-    def get_tool_metrics(self, tool_name):
+    def get_tool_metrics(self, tool_name: str) -> Dict[str, Any]:
         """Get metrics for a specific tool"""
         metrics = self.tool_metrics[tool_name]
         
@@ -208,7 +209,7 @@ class LogManager:
         
         return result
     
-    def export_logs(self, output_path, format='json', level=None):
+    def export_logs(self, output_path: str, format: str = 'json', level: Optional[str] = None) -> Dict[str, Any]:
         """Export logs to file"""
         try:
             logs = self.get_structured_logs(limit=10000)
@@ -217,18 +218,18 @@ class LogManager:
             if level:
                 logs = [log for log in logs if log.get('level') == level]
             
-            output_path = Path(output_path)
-            
+            output_file: Path = Path(output_path)
+
             if format == 'json':
-                with open(output_path, 'w') as f:
+                with open(output_file, 'w') as f:
                     json.dump(logs, f, indent=2)
-            
+
             elif format == 'csv':
                 if not logs:
                     return {"success": True, "message": "No logs to export"}
-                
+
                 # Get all unique keys
-                keys = set()
+                keys: set = set()
                 for log in logs:
                     keys.update(log.keys())
                 
@@ -255,7 +256,7 @@ class LogManager:
             logging.error(f"Error exporting logs: {e}")
             return {"success": False, "error": str(e)}
     
-    def rotate_log(self):
+    def rotate_log(self) -> Dict[str, Any]:
         """Manually rotate log files"""
         try:
             if not self.log_file.exists():
@@ -279,7 +280,7 @@ class LogManager:
             logging.error(f"Error rotating log: {e}")
             return {"success": False, "error": str(e)}
     
-    def get_log_files(self):
+    def get_log_files(self) -> List[Dict[str, Any]]:
         """Get list of all log files"""
         try:
             log_dir = self.log_file.parent
@@ -318,7 +319,7 @@ class LogManager:
             logging.error(f"Error listing log files: {e}")
             return []
     
-    def clean_old_logs(self, days=7):
+    def clean_old_logs(self, days: int = 7) -> Dict[str, Any]:
         """Delete log files older than specified days"""
         try:
             cutoff = datetime.now() - timedelta(days=days)
@@ -342,7 +343,7 @@ class LogManager:
             logging.error(f"Error cleaning old logs: {e}")
             return {"success": False, "error": str(e)}
     
-    def log_performance_metrics(self, stats):
+    def log_performance_metrics(self, stats: Dict[str, Any]) -> None:
         """Log performance metrics"""
         self.log_structured(
             'INFO',
@@ -353,7 +354,7 @@ class LogManager:
             }
         )
     
-    def get_performance_summary(self):
+    def get_performance_summary(self) -> Dict[str, Any]:
         """Get performance summary"""
         total_calls = sum(m['total_calls'] for m in self.tool_metrics.values())
         total_time = sum(m['total_execution_time'] for m in self.tool_metrics.values())
@@ -365,9 +366,9 @@ class LogManager:
             'tools_used': len(self.tool_metrics)
         }
     
-    def get_tool_usage_stats(self):
+    def get_tool_usage_stats(self) -> Dict[str, Dict[str, Any]]:
         """Get tool usage statistics"""
-        stats = {}
+        stats: Dict[str, Dict[str, Any]] = {}
         for tool_name, metrics in self.tool_metrics.items():
             stats[tool_name] = self.get_tool_metrics(tool_name)
         return stats
@@ -377,23 +378,23 @@ class LogAnalyzer:
     """
     Analyze and query log files
     """
-    def __init__(self, config):
-        self.config = config
-        self.log_file = Path(config['logging']['log_file'])
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.config: Dict[str, Any] = config
+        self.log_file: Path = Path(config['logging']['log_file'])
     
-    def _read_log_lines(self):
+    def _read_log_lines(self) -> List[str]:
         """Read all log lines"""
         if not self.log_file.exists():
             return []
-        
+
         try:
             with open(self.log_file, 'r') as f:
                 return f.readlines()
         except Exception as e:
             logging.error(f"Error reading log file: {e}")
             return []
-    
-    def _parse_log_line(self, line):
+
+    def _parse_log_line(self, line: str) -> Optional[Dict[str, str]]:
         """Parse a log line into components"""
         # Format: 2025-09-30 23:08:11,559 - root - INFO - Message
         try:
@@ -409,9 +410,9 @@ class LogAnalyzer:
             pass
         return None
     
-    def count_by_level(self):
+    def count_by_level(self) -> Dict[str, int]:
         """Count log entries by level"""
-        counts = defaultdict(int)
+        counts: Dict[str, int] = defaultdict(int)
         lines = self._read_log_lines()
         
         if not lines:
@@ -424,7 +425,7 @@ class LogAnalyzer:
         
         return dict(counts)
     
-    def get_errors(self, limit=100):
+    def get_errors(self, limit: int = 100) -> List[Dict[str, str]]:
         """Get error log entries"""
         errors = []
         lines = self._read_log_lines()
@@ -438,7 +439,7 @@ class LogAnalyzer:
         
         return errors[-limit:] if errors else []
     
-    def get_warnings(self, limit=100):
+    def get_warnings(self, limit: int = 100) -> List[Dict[str, str]]:
         """Get warning log entries"""
         warnings = []
         lines = self._read_log_lines()
@@ -452,7 +453,7 @@ class LogAnalyzer:
         
         return warnings[-limit:] if warnings else []
     
-    def get_recent_logs(self, minutes=60):
+    def get_recent_logs(self, minutes: int = 60) -> List[Dict[str, str]]:
         """Get logs from last N minutes"""
         cutoff = datetime.now() - timedelta(minutes=minutes)
         recent = []
@@ -471,7 +472,7 @@ class LogAnalyzer:
         
         return recent
     
-    def search_logs(self, query):
+    def search_logs(self, query: str) -> List[Dict[str, str]]:
         """Search logs for a query string"""
         results = []
         query_lower = query.lower()
@@ -485,7 +486,7 @@ class LogAnalyzer:
         
         return results
     
-    def get_statistics(self):
+    def get_statistics(self) -> Dict[str, Any]:
         """Get comprehensive log statistics"""
         lines = self._read_log_lines()
         counts = self.count_by_level()
@@ -519,12 +520,12 @@ class LogQuery:
     """
     Advanced querying of structured logs
     """
-    def __init__(self, config):
-        self.config = config
-        self.log_file = Path(config['logging']['log_file'])
-        self.structured_log = self.log_file.parent / f"{self.log_file.stem}_structured.json"
-    
-    def _read_structured_logs(self):
+    def __init__(self, config: Dict[str, Any]) -> None:
+        self.config: Dict[str, Any] = config
+        self.log_file: Path = Path(config['logging']['log_file'])
+        self.structured_log: Path = self.log_file.parent / f"{self.log_file.stem}_structured.json"
+
+    def _read_structured_logs(self) -> List[Dict[str, Any]]:
         """Read all structured logs"""
         if not self.structured_log.exists():
             return []
@@ -540,7 +541,7 @@ class LogQuery:
         
         return logs
     
-    def query_by_tool(self, tool_name):
+    def query_by_tool(self, tool_name: str) -> List[Dict[str, Any]]:
         """Query logs for specific tool"""
         results = []
         
@@ -551,7 +552,7 @@ class LogQuery:
         
         return results
     
-    def query_by_time_range(self, start, end):
+    def query_by_time_range(self, start: datetime, end: datetime) -> List[Dict[str, Any]]:
         """Query logs within time range"""
         results = []
         
@@ -565,7 +566,7 @@ class LogQuery:
         
         return results
     
-    def query_by_success(self, success=True):
+    def query_by_success(self, success: bool = True) -> List[Dict[str, Any]]:
         """Query logs by success status"""
         results = []
         target_status = 'success' if success else 'failed'
@@ -577,7 +578,7 @@ class LogQuery:
         
         return results
     
-    def query_slow_operations(self, threshold=1.0):
+    def query_slow_operations(self, threshold: float = 1.0) -> List[Dict[str, Any]]:
         """Query operations slower than threshold"""
         results = []
         
@@ -589,6 +590,6 @@ class LogQuery:
         
         return results
     
-    def query_failures(self):
+    def query_failures(self) -> List[Dict[str, Any]]:
         """Query all failures"""
         return self.query_by_success(success=False)

@@ -19,7 +19,7 @@ class SmartModelManager:
     - Strategy: Minimize swaps through intelligent routing (Phase 2)
     """
 
-    def __init__(self, api_url: str, config: Dict):
+    def __init__(self, api_url: str, config: Dict[str, Any]) -> None:
         self.api_url = api_url
         self.config = config
         self.current_vram_model: Optional[str] = None
@@ -112,7 +112,7 @@ class SmartModelManager:
         self.ensure_in_vram(model, phase)
         return model
 
-    def refresh_keep_alive(self, model: str):
+    def refresh_keep_alive(self, model: str) -> None:
         """
         Refresh keep_alive timer to keep model loaded longer
         Note: On Windows, models still evict on swap despite this

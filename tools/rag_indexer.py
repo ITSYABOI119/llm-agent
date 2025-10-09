@@ -14,7 +14,7 @@ from sentence_transformers import SentenceTransformer
 
 
 class RAGIndexer:
-    def __init__(self, config):
+    def __init__(self, config: Dict[str, Any]) -> None:
         """Initialize RAG indexer with configuration"""
         self.config = config
         self.workspace = Path(config['agent']['workspace'])

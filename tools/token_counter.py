@@ -13,7 +13,7 @@ class TokenCounter:
     Uses conservative estimation: ~4 chars per token
     """
 
-    def __init__(self, max_tokens: int = 8000):
+    def __init__(self, max_tokens: int = 8000) -> None:
         """
         Initialize token counter
 
@@ -173,7 +173,7 @@ Status: {'✓ Within budget' if self.current_usage['total'] < self.max_tokens el
 """
         return report
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset token counter for new request"""
         self.current_usage = {
             'context_gathering': 0,

@@ -22,7 +22,7 @@ class ProgressiveRetrySystem:
     - Maintains high success rate without excessive swaps
     """
 
-    def __init__(self, model_manager, model_router):
+    def __init__(self, model_manager: Any, model_router: Any) -> None:
         """
         Initialize retry system
 
@@ -30,9 +30,9 @@ class ProgressiveRetrySystem:
             model_manager: SmartModelManager instance
             model_router: ModelRouter instance
         """
-        self.model_manager = model_manager
-        self.model_router = model_router
-        self.max_retries = 3
+        self.model_manager: Any = model_manager
+        self.model_router: Any = model_router
+        self.max_retries: int = 3
 
     def execute_with_retry(
         self,
@@ -187,7 +187,7 @@ class ProgressiveRetrySystem:
                 'attempt': attempt_num
             }
 
-    def _build_standard_prompt(self, task: str, context: Optional[Dict]) -> str:
+    def _build_standard_prompt(self, task: str, context: Optional[Dict[str, Any]]) -> str:
         """Build standard prompt for first attempt"""
         prompt = f"Task: {task}\n\n"
 
@@ -201,8 +201,8 @@ class ProgressiveRetrySystem:
     def _build_enhanced_prompt(
         self,
         task: str,
-        context: Optional[Dict],
-        previous_attempts: List[Dict]
+        context: Optional[Dict[str, Any]],
+        previous_attempts: List[Dict[str, Any]]
     ) -> str:
         """
         Build enhanced prompt with failure analysis
@@ -234,8 +234,8 @@ class ProgressiveRetrySystem:
     def _build_debugging_prompt(
         self,
         task: str,
-        context: Optional[Dict],
-        previous_attempts: List[Dict]
+        context: Optional[Dict[str, Any]],
+        previous_attempts: List[Dict[str, Any]]
     ) -> str:
         """
         Build detailed debugging prompt for emergency model
@@ -271,8 +271,8 @@ class ProgressiveRetrySystem:
     def _is_critical_task(
         self,
         task: str,
-        classification: Optional[Dict],
-        attempts: List[Dict]
+        classification: Optional[Dict[str, Any]],
+        attempts: List[Dict[str, Any]]
     ) -> bool:
         """
         Determine if task is critical enough to warrant emergency model swap
@@ -305,7 +305,7 @@ class ProgressiveRetrySystem:
         logging.info("Task not critical - won't escalate to emergency model")
         return False
 
-    def get_retry_statistics(self, retry_history: List[Dict]) -> Dict:
+    def get_retry_statistics(self, retry_history: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Get statistics from retry history"""
         if not retry_history:
             return {}

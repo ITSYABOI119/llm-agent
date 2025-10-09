@@ -15,7 +15,7 @@ class ActionVerifier:
     (Claude Code pattern: gather → act → verify → repeat)
     """
 
-    def __init__(self, config: Dict, fs_tools):
+    def __init__(self, config: Dict[str, Any], fs_tools: Any) -> None:
         self.config = config
         self.fs_tools = fs_tools
         self.workspace = Path(config['agent']['workspace'])

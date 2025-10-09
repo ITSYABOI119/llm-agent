@@ -14,7 +14,7 @@ class StructuredPlanner:
     Instead of freeform text, creates explicit JSON with tool calls
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.plan_template = {
             "task_summary": "",
             "files_to_create": [],

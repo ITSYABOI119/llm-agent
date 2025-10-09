@@ -32,6 +32,7 @@ from tools.executors import SinglePhaseExecutor, TwoPhaseExecutor  # Phase 2: Ex
 from tools.parser import ToolParser  # Phase 2: Extracted parser
 from tools.context_builder import ContextBuilder  # Phase 2: Extracted context builder
 from tools.tool_router import ToolRouter  # Phase 7: Extracted tool routing
+from tools.verification_workflow import VerificationWorkflow  # Phase 7: Extracted verification
 from safety.sandbox import Sandbox
 from safety.validators import Validator
 
@@ -129,6 +130,9 @@ class Agent:
 
         # Phase 7: Tool Router (extracted tool routing logic)
         self.tool_router = ToolRouter(self)
+
+        # Phase 7: Verification Workflow (extracted verification logic)
+        self.verification_workflow = VerificationWorkflow(self)
 
         # Note: Model swaps take ~2.5s on Windows (disk → VRAM)
         # Phase 2 minimizes swaps, Phase 3 adds smart retries

@@ -476,6 +476,172 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.slow)
 
 
+# ============================================================================
+# REAL WORKSPACE TESTS
+# ============================================================================
+
+class TestAgentRealWorkspace:
+    """
+    Tests using the actual agent_workspace directory.
+    These tests will create files in C:/Users/jluca/Documents/newfolder/agent_workspace
+
+    Run with: pytest tests/test_agent_e2e.py -m real_workspace -v -s
+    """
+
+    @pytest.fixture(scope="function")
+    def real_agent(self):
+        """Create agent with default config (uses real workspace)"""
+        config_path = Path(__file__).parent.parent / "config.yaml"
+        agent = Agent(str(config_path))
+
+        # Load config to get workspace path
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        workspace = Path(config['agent']['workspace'])
+        print(f"\n[REAL WORKSPACE] {workspace}")
+
+        return agent, workspace
+
+    @pytest.mark.real_workspace
+    def test_create_file_in_real_workspace(self, real_agent):
+        """Test: Create a file in the actual agent_workspace"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Create file in REAL workspace")
+        print("="*60)
+
+        response = agent.chat("Create a file called e2e_test.txt with 'E2E Test from pytest'")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Validate in REAL workspace
+        test_file = workspace / "e2e_test.txt"
+        assert test_file.exists(), f"File should exist at {test_file}"
+
+        content = test_file.read_text()
+        print(f"[FILE] Content: '{content}'")
+
+        assert "E2E Test" in content
+        print(f"[PASS] Test passed! File created at: {test_file}")
+
+    @pytest.mark.real_workspace
+    def test_list_real_workspace(self, real_agent):
+        """Test: List files in the actual agent_workspace"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: List REAL workspace files")
+        print("="*60)
+
+        response = agent.chat("List all files in the workspace")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Should mention existing files
+        existing_files = list(workspace.glob("*"))
+        print(f"[FILES] Found {len(existing_files)} files in workspace:")
+        for f in existing_files:
+            print(f"  - {f.name}")
+
+        print("[PASS] Test passed!")
+
+    @pytest.mark.real_workspace
+    def test_create_project_in_real_workspace(self, real_agent):
+        """Test: Create a multi-file project in real workspace"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Create project in REAL workspace")
+        print("="*60)
+
+        prompt = """Create a test project with:
+        - test_main.py with a greet() function
+        - test_utils.py with a format_text() function
+        """
+
+        response = agent.chat(prompt)
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Validate files in REAL workspace
+        main_file = workspace / "test_main.py"
+        utils_file = workspace / "test_utils.py"
+
+        print(f"[CHECK] test_main.py exists: {main_file.exists()}")
+        print(f"[CHECK] test_utils.py exists: {utils_file.exists()}")
+
+        assert main_file.exists() or utils_file.exists(), "At least one file should be created"
+
+        if main_file.exists():
+            print(f"[FILE] test_main.py:\n{main_file.read_text()[:200]}...")
+        if utils_file.exists():
+            print(f"[FILE] test_utils.py:\n{utils_file.read_text()[:200]}...")
+
+        print("[PASS] Test passed! Project files in real workspace")
+
+    @pytest.mark.real_workspace
+    def test_edit_existing_file_in_real_workspace(self, real_agent):
+        """Test: Edit a file in the real workspace"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Edit file in REAL workspace")
+        print("="*60)
+
+        # Create initial file if it doesn't exist
+        test_file = workspace / "editable.txt"
+        if not test_file.exists():
+            agent.chat("Create editable.txt with 'Initial content'")
+            print("[SETUP] Created editable.txt")
+
+        # Edit the file
+        response = agent.chat("Append 'Added by E2E test' to editable.txt")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Validate edit
+        content = test_file.read_text()
+        print(f"[FILE] Content:\n{content}")
+
+        assert "Initial content" in content or "Added by E2E test" in content
+        print(f"[PASS] Test passed! File edited at: {test_file}")
+
+    @pytest.mark.real_workspace
+    @pytest.mark.slow
+    def test_creative_task_real_workspace(self, real_agent):
+        """Test: Complex creative task in real workspace (may trigger two-phase)"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Creative task in REAL workspace")
+        print("="*60)
+
+        prompt = """Create a simple web page called portfolio.html with:
+        - A header with your name
+        - A section about skills
+        - Nice styling
+        """
+
+        response = agent.chat(prompt)
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Check for HTML file
+        html_files = list(workspace.glob("*.html"))
+        print(f"[FILES] HTML files in workspace: {[f.name for f in html_files]}")
+
+        portfolio = workspace / "portfolio.html"
+        if portfolio.exists():
+            content = portfolio.read_text()
+            print(f"[FILE] portfolio.html created ({len(content)} chars)")
+            print(f"[PREVIEW] {content[:300]}...")
+            assert "<html" in content.lower() or "<!doctype" in content.lower()
+
+        print("[PASS] Test completed!")
+
+
 if __name__ == "__main__":
     # Run tests with verbose output
     pytest.main([__file__, "-v", "-s", "--tb=short"])

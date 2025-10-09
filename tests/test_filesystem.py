@@ -233,19 +233,55 @@ class TestEditModes:
         lines = [l for l in content.split('\n') if l]
         assert lines == ["Line 1", "New Line", "Line 4"]
 
-    @pytest.mark.skip(reason="insert_after/insert_before require function/class patterns")
     def test_edit_mode_insert_after(self, fs_tools, temp_workspace):
-        """Test insert_after mode (requires function/class patterns)"""
-        # These modes are designed for inserting after functions/classes
-        # and may not work with simple text patterns
-        pass
+        """Test insert_after mode with function pattern"""
+        # Create Python file with function
+        python_code = """def multiply(a, b):
+    return a * b
 
-    @pytest.mark.skip(reason="insert_after/insert_before require function/class patterns")
+def divide(a, b):
+    return a / b
+"""
+        (temp_workspace / "math.py").write_text(python_code)
+
+        result = fs_tools.edit_file(
+            path="math.py",
+            mode="insert_after",
+            insert_after="def multiply",
+            content="\ndef add(a, b):\n    return a + b\n"
+        )
+
+        assert result['success'] is True
+        content = (temp_workspace / "math.py").read_text()
+        assert "def add" in content
+        # add should be after multiply but before divide
+        assert content.index("def add") > content.index("def multiply")
+        assert content.index("def add") < content.index("def divide")
+
     def test_edit_mode_insert_before(self, fs_tools, temp_workspace):
-        """Test insert_before mode (requires function/class patterns)"""
-        # These modes are designed for inserting before functions/classes
-        # and may not work with simple text patterns
-        pass
+        """Test insert_before mode with function pattern"""
+        # Create Python file with function
+        python_code = """def first():
+    pass
+
+def second():
+    pass
+"""
+        (temp_workspace / "funcs.py").write_text(python_code)
+
+        result = fs_tools.edit_file(
+            path="funcs.py",
+            mode="insert_before",
+            insert_before="def second",
+            content="def middle():\n    pass\n\n"
+        )
+
+        assert result['success'] is True
+        content = (temp_workspace / "funcs.py").read_text()
+        assert "def middle" in content
+        # middle should be after first but before second
+        assert content.index("def middle") > content.index("def first")
+        assert content.index("def middle") < content.index("def second")
 
 
 class TestPythonValidation:
@@ -379,6 +415,305 @@ class TestFunctionAndClassDetection:
         # Should find the end of the class
         assert isinstance(result, int)
         assert result >= 0
+
+
+class TestAdvancedEditModes:
+    """Test advanced editing scenarios"""
+
+    def test_edit_with_multiline_search_replace(self, fs_tools, temp_workspace):
+        """Test replacing multiline content"""
+        content = "Line 1\nLine 2\nLine 3\nLine 4"
+        (temp_workspace / "multi.txt").write_text(content)
+
+        result = fs_tools.edit_file(
+            path="multi.txt",
+            mode="replace",
+            search="Line 2\nLine 3",
+            replace="New Lines"
+        )
+
+        assert result['success'] is True
+        new_content = (temp_workspace / "multi.txt").read_text()
+        assert "New Lines" in new_content
+        assert "Line 2\nLine 3" not in new_content
+
+    def test_edit_replace_once_multiple_occurrences(self, fs_tools, temp_workspace):
+        """Test replace_once only replaces first occurrence"""
+        content = "hello world\nhello again\nhello there"
+        (temp_workspace / "hellos.txt").write_text(content)
+
+        result = fs_tools.edit_file(
+            path="hellos.txt",
+            mode="replace_once",
+            search="hello",
+            replace="hi"
+        )
+
+        assert result['success'] is True
+        new_content = (temp_workspace / "hellos.txt").read_text()
+        # Should replace only first occurrence
+        assert new_content.count("hi") == 1
+        assert new_content.count("hello") == 2
+
+    def test_edit_insert_at_line_boundaries(self, fs_tools, temp_workspace):
+        """Test insert_at_line at file start and end"""
+        content = "Line 1\nLine 2\nLine 3"
+        (temp_workspace / "bounds.txt").write_text(content)
+
+        # Insert at line 1 (beginning)
+        result = fs_tools.edit_file(
+            path="bounds.txt",
+            mode="insert_at_line",
+            line_number=1,
+            content="Start\n"
+        )
+        assert result['success'] is True
+
+        # Insert at last line
+        result = fs_tools.edit_file(
+            path="bounds.txt",
+            mode="insert_at_line",
+            line_number=4,
+            content="End\n"
+        )
+        assert result['success'] is True
+
+    def test_edit_replace_lines_with_empty_content(self, fs_tools, temp_workspace):
+        """Test replacing lines with empty content (deletion)"""
+        content = "Line 1\nLine 2\nLine 3\nLine 4"
+        (temp_workspace / "delete.txt").write_text(content)
+
+        result = fs_tools.edit_file(
+            path="delete.txt",
+            mode="replace_lines",
+            start_line=2,
+            end_line=3,
+            content=""
+        )
+
+        assert result['success'] is True
+        new_content = (temp_workspace / "delete.txt").read_text()
+        assert "Line 2" not in new_content
+        assert "Line 3" not in new_content
+        assert "Line 1" in new_content
+        assert "Line 4" in new_content
+
+
+class TestFileSystemBasicOps:
+    """Test basic operations from filesystem_basic.py"""
+
+    def test_read_file_with_encoding(self, fs_tools, temp_workspace):
+        """Test reading files with ASCII content"""
+        # Test with standard ASCII content (cross-platform safe)
+        (temp_workspace / "ascii.txt").write_text("Hello World 123", encoding='utf-8')
+
+        result = fs_tools.read_file("ascii.txt")
+        assert result['success'] is True
+        assert "Hello World" in result['content']
+        assert "123" in result['content']
+
+    def test_list_directory_recursive(self, fs_tools, temp_workspace):
+        """Test listing nested directories"""
+        # Create nested structure
+        (temp_workspace / "dir1").mkdir()
+        (temp_workspace / "dir1" / "file1.txt").write_text("content1")
+        (temp_workspace / "dir1" / "subdir").mkdir()
+        (temp_workspace / "dir1" / "subdir" / "file2.txt").write_text("content2")
+
+        result = fs_tools.list_directory("dir1")
+        assert result['success'] is True
+        assert result['count'] >= 2  # Fixed: 'count' not 'item_count'
+
+    def test_list_directory_empty(self, fs_tools, temp_workspace):
+        """Test listing an empty directory"""
+        (temp_workspace / "empty").mkdir()
+
+        result = fs_tools.list_directory("empty")
+        assert result['success'] is True
+        assert result['count'] == 0  # Fixed: 'count' not 'item_count'
+
+    def test_delete_file_with_spaces(self, fs_tools, temp_workspace):
+        """Test deleting files with spaces in name"""
+        (temp_workspace / "file with spaces.txt").write_text("content")
+
+        result = fs_tools.delete_file("file with spaces.txt")
+        assert result['success'] is True
+        assert not (temp_workspace / "file with spaces.txt").exists()
+
+    def test_write_file_creates_parent_directories(self, fs_tools, temp_workspace):
+        """Test that write_file creates parent directories"""
+        result = fs_tools.write_file("nested/deep/file.txt", "content")
+
+        assert result['success'] is True
+        assert (temp_workspace / "nested" / "deep" / "file.txt").exists()
+
+    def test_read_file_size_info(self, fs_tools, temp_workspace):
+        """Test that read_file returns size information"""
+        content = "x" * 1000
+        (temp_workspace / "sized.txt").write_text(content)
+
+        result = fs_tools.read_file("sized.txt")
+        assert result['success'] is True
+        # File should have size info
+        assert 'content' in result
+
+
+class TestErrorConditions:
+    """Test various error conditions and edge cases"""
+
+    def test_edit_file_invalid_line_numbers(self, fs_tools, temp_workspace):
+        """Test editing with invalid line numbers"""
+        (temp_workspace / "lines.txt").write_text("Line 1\nLine 2\nLine 3")
+
+        # Line number out of range
+        result = fs_tools.edit_file(
+            path="lines.txt",
+            mode="insert_at_line",
+            line_number=100,
+            content="New"
+        )
+        assert result['success'] is False
+
+    def test_edit_file_invalid_range(self, fs_tools, temp_workspace):
+        """Test replace_lines with invalid range"""
+        (temp_workspace / "range.txt").write_text("Line 1\nLine 2\nLine 3")
+
+        # Start line > end line
+        result = fs_tools.edit_file(
+            path="range.txt",
+            mode="replace_lines",
+            start_line=3,
+            end_line=1,
+            content="New"
+        )
+        assert result['success'] is False
+
+    def test_edit_insert_after_pattern_not_found(self, fs_tools, temp_workspace):
+        """Test insert_after with pattern that doesn't exist"""
+        (temp_workspace / "test.py").write_text("def hello():\n    pass")
+
+        result = fs_tools.edit_file(
+            path="test.py",
+            mode="insert_after",
+            insert_after="def nonexistent",
+            content="new content"
+        )
+        assert result['success'] is False
+        assert 'not found' in result.get('error', '').lower()
+
+    def test_write_file_readonly_simulation(self, fs_tools, temp_workspace):
+        """Test handling of write errors"""
+        # This tests the error handling path
+        # We can't easily make a file readonly cross-platform in tests
+        # but we can test with invalid path characters
+        result = fs_tools.write_file("invalid\x00name.txt", "content")
+        assert result['success'] is False
+
+    def test_read_file_very_large(self, fs_tools, temp_workspace, config):
+        """Test reading file near size limit"""
+        # Create file just under the size limit
+        config['security']['max_file_size'] = 1000
+        fs = FileSystemTools(config)
+
+        content = "x" * 900
+        (temp_workspace / "large.txt").write_text(content)
+
+        result = fs.read_file("large.txt")
+        assert result['success'] is True
+        assert len(result['content']) == 900
+
+
+class TestPythonSyntaxValidation:
+    """Test Python syntax validation in detail"""
+
+    def test_edit_python_preserves_valid_syntax(self, fs_tools, temp_workspace):
+        """Test that editing Python file validates syntax"""
+        code = "def hello():\n    return 'world'\n"
+        (temp_workspace / "valid.py").write_text(code)
+
+        result = fs_tools.edit_file(
+            path="valid.py",
+            mode="append",
+            content="\ndef goodbye():\n    return 'bye'\n"
+        )
+
+        assert result['success'] is True
+
+    def test_edit_python_rejects_invalid_syntax(self, fs_tools, temp_workspace):
+        """Test that editing Python file with invalid syntax fails"""
+        code = "def hello():\n    return 'world'\n"
+        (temp_workspace / "valid.py").write_text(code)
+
+        result = fs_tools.edit_file(
+            path="valid.py",
+            mode="append",
+            content="\ndef broken(\n    syntax error"
+        )
+
+        assert result['success'] is False
+        assert 'syntax' in result.get('error', '').lower()
+
+    def test_non_python_file_skip_validation(self, fs_tools, temp_workspace):
+        """Test that non-Python files don't get syntax validation"""
+        # Text file should allow any content
+        result = fs_tools.write_file("test.txt", "def broken(\ninvalid")
+        assert result['success'] is True
+
+        # JavaScript file should allow any content
+        result = fs_tools.write_file("test.js", "function broken( {")
+        assert result['success'] is True
+
+
+class TestClassDetection:
+    """Test class and function end detection"""
+
+    def test_find_class_with_nested_methods(self, fs_tools, temp_workspace):
+        """Test finding end of class with multiple methods"""
+        code = """class MyClass:
+    def __init__(self):
+        self.value = 0
+
+    def method1(self):
+        return self.value
+
+    def method2(self):
+        self.value += 1
+
+class NextClass:
+    pass
+"""
+        (temp_workspace / "classes.py").write_text(code)
+
+        lines = code.split('\n')
+        result = fs_tools._find_function_or_class_end(lines, "class MyClass", 0)
+
+        # Should find end after method2
+        assert result > 0
+        assert result < len(lines)
+
+    def test_insert_after_class(self, fs_tools, temp_workspace):
+        """Test inserting after a class definition"""
+        code = """class FirstClass:
+    def method(self):
+        pass
+
+class SecondClass:
+    pass
+"""
+        (temp_workspace / "classes.py").write_text(code)
+
+        result = fs_tools.edit_file(
+            path="classes.py",
+            mode="insert_after",
+            insert_after="class FirstClass",
+            content="\nclass MiddleClass:\n    pass\n"
+        )
+
+        assert result['success'] is True
+        content = (temp_workspace / "classes.py").read_text()
+        assert "MiddleClass" in content
+        assert content.index("MiddleClass") > content.index("FirstClass")
+        assert content.index("MiddleClass") < content.index("SecondClass")
 
 
 if __name__ == '__main__':

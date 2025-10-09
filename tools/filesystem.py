@@ -1,6 +1,7 @@
 """
 File System Tools
 Handles file and directory operations with safety checks
+Phase 7: Refactored to delegate to basic/edit/advanced modules
 """
 
 import os
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from tools.utils import get_safe_path
 from tools.exceptions import FileOperationError, ValidationError
+from tools.filesystem_basic import BasicFileOperations  # Phase 7: Extracted basic ops
+from tools.filesystem_edit import FileEditOperations  # Phase 7: Extracted edit ops
 
 
 class FileSystemTools:
@@ -37,24 +40,17 @@ class FileSystemTools:
         from tools.diff_editor import DiffEditor
         self.diff_editor = DiffEditor(self.workspace)
 
+        # Phase 7: Initialize delegated operation modules
+        self.basic_ops = BasicFileOperations(self.workspace, self.max_file_size)
+        self.edit_ops = FileEditOperations(self.workspace, self.max_file_size, self.linter)
+
     def _get_safe_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path and validate it's within workspace"""
         return get_safe_path(self.workspace, relative_path)
 
     def create_folder(self, path: str) -> Dict[str, Any]:
-        """Create a new folder"""
-        try:
-            full_path = self._get_safe_path(path)
-            full_path.mkdir(parents=True, exist_ok=True)
-            logging.info(f"Created folder: {full_path}")
-            return {
-                "success": True,
-                "message": f"Folder created: {path}",
-                "path": str(full_path)
-            }
-        except Exception as e:
-            logging.error(f"Error creating folder: {e}")
-            return {"success": False, "error": str(e)}
+        """Create a new folder - delegated to BasicFileOperations"""
+        return self.basic_ops.create_folder(path)
     
     def write_file(self, path: str, content: str) -> Dict[str, Any]:
         """Write content to a file"""

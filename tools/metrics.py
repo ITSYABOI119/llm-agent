@@ -172,7 +172,7 @@ class MetricsCollector:
                           self.stats["total_executions"] * 100)
 
         # Get top tools by usage
-        tool_usage = defaultdict(int)
+        tool_usage: Dict[str, int] = defaultdict(int)
         for execution in self.tool_executions:
             tool_usage[execution["tool"]] += 1
 

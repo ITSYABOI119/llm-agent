@@ -15,8 +15,8 @@ agent = Agent()
 
 print(f"\nMulti-model enabled: {agent.model_router.enabled}")
 print(f"Available models:")
-for key, model_config in agent.model_router.models.items():
-    print(f"  - {key}: {model_config.get('name', 'N/A')}")
+for key, model_name in agent.model_router.models.items():
+    print(f"  - {key}: {model_name}")
 
 print("\n" + "="*80)
 print("TEST 1: Simple Task (should use single-phase, qwen2.5-coder)")

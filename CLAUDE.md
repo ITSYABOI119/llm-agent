@@ -446,10 +446,16 @@ self.log_query.query_slow_operations(threshold=1.0)
 - ⚠️ **Openthinker routing**: Gets stuck in planning phase for 4+ file tasks
 
 **Known Issues & Recommendations:**
-1. **Two-phase execution optimization needed**: Execution phase timing out on complex plans with qwen2.5-coder:7b
-2. **Openthinker routing improvement**: Should prefer two-phase for multi-file creative tasks (currently single-phase)
-3. **Timeout handling**: Need graceful timeout recovery instead of hard timeout
-4. **Progress granularity**: Show plan generation progress (currently just "Planning..." with no detail)
+1. ✅ **FIXED: Openthinker routing**: Now forces two-phase for 3+ file tasks (avoids single-phase timeout)
+2. ✅ **FIXED: Timeout handling**: Graceful timeout with helpful error messages (planning: 180s, execution: 300s)
+3. ✅ **FIXED: Progress granularity**: Streaming dots during plan generation (. every 5 chunks)
+4. ✅ **FIXED: tool_parser bug**: AttributeError resolved - parser now initialized correctly
+
+**Phase 1 Tactical Fixes Complete:**
+- Routing: 3+ file tasks → two-phase execution (stops openthinker getting stuck)
+- Timeouts: Configurable per phase (planning_timeout, execution_timeout)
+- Progress: Real-time dots and events during planning phase
+- Error handling: Graceful timeout messages with context
 
 ### Previous (2025-01-08) - Phases 4-6: Performance, Testing & Observability
 

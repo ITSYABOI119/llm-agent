@@ -371,7 +371,7 @@ class Agent:
             use_two_phase = self.model_router.should_use_two_phase(task_analysis)
 
             if use_two_phase:
-                logging.info("Using TWO-PHASE execution (Plan → Execute)")
+                logging.info("Using TWO-PHASE execution (Plan -> Execute)")
                 return self._execute_two_phase(user_message, task_analysis)
             else:
                 logging.info("Using SINGLE-PHASE execution")

@@ -4,8 +4,9 @@ Two-Phase Executor - Combines planning (reasoning model) with execution (code mo
 import logging
 import requests
 import time
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional, Any
 from tools.event_bus import get_event_bus
+from tools.execution_history import ExecutionHistory  # Phase 2
 
 
 class TwoPhaseExecutor:
@@ -15,8 +16,13 @@ class TwoPhaseExecutor:
         self.api_url = api_url
         self.config = config
 
+        # Phase 2: Execution history tracking
+        history_enabled = config.get('execution_history', {}).get('enabled', True)
+        self.history = ExecutionHistory() if history_enabled else None
+
     def execute(self, user_message: str, planning_model: str, execution_model: str,
-                parse_callback: Callable, execute_callback: Callable) -> Dict:
+                parse_callback: Callable, execute_callback: Callable,
+                task_analysis: Optional[Dict[str, Any]] = None) -> Dict:
         """
         Execute a task in two phases
 
@@ -38,6 +44,10 @@ class TwoPhaseExecutor:
                 }
             }
         """
+        # Phase 2: Initialize execution tracking
+        start_time = time.time()
+        tool_calls_executed = []
+
         # Get event bus for streaming
         event_bus = get_event_bus()
         streaming_enabled = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {}).get('enabled', False)
@@ -67,6 +77,20 @@ class TwoPhaseExecutor:
         plan_result = self._planning_phase(user_message, planning_model)
 
         if not plan_result['success']:
+            # Phase 2: Log failed execution (planning phase)
+            if self.history and task_analysis:
+                self.history.log_execution(
+                    task_text=user_message,
+                    task_analysis=task_analysis,
+                    execution_mode='two-phase',
+                    planning_model=planning_model,
+                    execution_model=execution_model,
+                    success=False,
+                    duration_seconds=time.time() - start_time,
+                    error_type='PlanningPhaseError',
+                    error_message=plan_result.get('error', 'Planning phase failed')
+                )
+
             return {
                 'success': False,
                 'error': f"Planning phase failed: {plan_result.get('error')}",
@@ -88,10 +112,25 @@ class TwoPhaseExecutor:
             })
 
         execution_result = self._execution_phase(
-            user_message, plan, execution_model, parse_callback, execute_callback
+            user_message, plan, execution_model, parse_callback, execute_callback, tool_calls_executed
         )
 
         if not execution_result['success']:
+            # Phase 2: Log failed execution (execution phase)
+            if self.history and task_analysis:
+                self.history.log_execution(
+                    task_text=user_message,
+                    task_analysis=task_analysis,
+                    execution_mode='two-phase',
+                    planning_model=planning_model,
+                    execution_model=execution_model,
+                    success=False,
+                    duration_seconds=time.time() - start_time,
+                    error_type='ExecutionPhaseError',
+                    error_message=execution_result.get('error', 'Execution phase failed'),
+                    tool_calls=tool_calls_executed
+                )
+
             return {
                 'success': False,
                 'error': f"Execution phase failed: {execution_result.get('error')}",
@@ -104,6 +143,19 @@ class TwoPhaseExecutor:
 
         logging.info("TWO-PHASE EXECUTION COMPLETED SUCCESSFULLY")
         logging.info("="*80)
+
+        # Phase 2: Log successful execution to history
+        if self.history and task_analysis:
+            self.history.log_execution(
+                task_text=user_message,
+                task_analysis=task_analysis,
+                execution_mode='two-phase',
+                planning_model=planning_model,
+                execution_model=execution_model,
+                success=True,
+                duration_seconds=time.time() - start_time,
+                tool_calls=tool_calls_executed
+            )
 
         return {
             'success': True,
@@ -226,7 +278,7 @@ Format your response as a clear, structured plan:"""
             }
 
     def _execution_phase(self, original_request: str, plan: str, execution_model: str,
-                        parse_callback: Callable, execute_callback: Callable) -> Dict:
+                        parse_callback: Callable, execute_callback: Callable, tool_calls_executed: list) -> Dict:
         """
         Phase 2: Use code model to execute the plan with actual tool calls
 
@@ -292,10 +344,21 @@ Output tool calls only:"""
                     params = tool_call.get('params', {})
 
                     logging.info(f"Executing: {tool_name}")
+                    tool_start = time.time()
                     result = execute_callback(tool_name, params)
+                    tool_time = time.time() - tool_start
+
                     tool_results.append({
                         'tool': tool_name,
                         'result': result
+                    })
+
+                    # Phase 2: Track tool execution for history
+                    tool_calls_executed.append({
+                        'tool': tool_name,
+                        'params': params,
+                        'success': result.get('success', False),
+                        'duration': tool_time
                     })
 
                 # Build result summary

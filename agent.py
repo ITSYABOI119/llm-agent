@@ -406,7 +406,8 @@ class Agent:
             tools_description=tools_description,
             parse_callback=self.parse_tool_calls,
             execute_callback=self.execute_tool,
-            history_callback=self.history.add_message
+            history_callback=self.history.add_message,
+            task_analysis=task_analysis  # Phase 2: Pass task_analysis for history logging
         )
 
     def _execute_two_phase(self, user_message, task_analysis):
@@ -424,7 +425,8 @@ class Agent:
             planning_model,
             execution_model,
             parse_callback=self.parse_tool_calls,
-            execute_callback=self.execute_tool
+            execute_callback=self.execute_tool,
+            task_analysis=task_analysis  # Phase 2: Pass task_analysis for history logging
         )
 
         if result['success']:

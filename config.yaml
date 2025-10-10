@@ -163,6 +163,13 @@ performance:
     pool_maxsize: 10       # Maximum pool size
     timeout: 10            # Request timeout in seconds
 
+# Execution History Settings (Phase 2)
+execution_history:
+  enabled: true
+  database_path: "logs/execution_history.db"
+  retention_days: 90  # Keep execution history for 90 days
+  track_tool_details: true  # Track individual tool execution results
+
 # Metrics & Observability Settings (Phase 6)
 metrics:
   enabled: true

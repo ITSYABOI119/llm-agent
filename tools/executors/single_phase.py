@@ -10,6 +10,7 @@ import time
 from typing import Dict, Any, List, Callable, Optional
 from pathlib import Path
 from tools.event_bus import get_event_bus
+from tools.execution_history import ExecutionHistory  # Phase 2
 
 
 class SinglePhaseExecutor:
@@ -31,6 +32,10 @@ class SinglePhaseExecutor:
         self.api_url = f"http://{config['ollama']['host']}:{config['ollama']['port']}"
         self.workspace = Path(config['agent']['workspace'])
 
+        # Phase 2: Execution history tracking
+        history_enabled = config.get('execution_history', {}).get('enabled', True)
+        self.history = ExecutionHistory() if history_enabled else None
+
     def execute(
         self,
         user_message: str,
@@ -40,7 +45,8 @@ class SinglePhaseExecutor:
         tools_description: str,
         parse_callback: Callable[[str], List[Dict[str, Any]]],
         execute_callback: Callable[[str, Dict[str, Any]], Dict[str, Any]],
-        history_callback: Callable[[str, str], None]
+        history_callback: Callable[[str, str], None],
+        task_analysis: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Execute task using single model.
@@ -58,6 +64,11 @@ class SinglePhaseExecutor:
         Returns:
             Final response message
         """
+        # Phase 2: Initialize execution tracking
+        execution_id = None
+        start_time = time.time()
+        tool_calls_executed = []
+
         try:
             # Get event bus for streaming
             event_bus = get_event_bus()
@@ -235,6 +246,14 @@ Respond helpfully to user requests. Execute tools when needed."""
                     result = execute_callback(tool_name, params)
                     tool_time = time.time() - tool_start
 
+                    # Phase 2: Track tool execution for history
+                    tool_calls_executed.append({
+                        'tool': tool_name,
+                        'params': params,
+                        'success': result.get('success', False),
+                        'duration': tool_time
+                    })
+
                     # Emit tool result event
                     if streaming_enabled:
                         event_bus.publish('tool_result', {
@@ -290,6 +309,18 @@ Respond helpfully to user requests. Execute tools when needed."""
             # Add to session history
             history_callback("assistant", final_response)
 
+            # Phase 2: Log execution to history
+            if self.history and task_analysis:
+                self.history.log_execution(
+                    task_text=user_message,
+                    task_analysis=task_analysis,
+                    execution_mode='single-phase',
+                    selected_model=selected_model,
+                    success=True,
+                    duration_seconds=time.time() - start_time,
+                    tool_calls=tool_calls_executed
+                )
+
             # Emit completion event
             if streaming_enabled:
                 event_bus.publish('complete', {
@@ -301,6 +332,20 @@ Respond helpfully to user requests. Execute tools when needed."""
 
         except Exception as e:
             logging.error(f"Error in single-phase execution: {e}", exc_info=True)
+
+            # Phase 2: Log failed execution to history
+            if self.history and task_analysis:
+                self.history.log_execution(
+                    task_text=user_message,
+                    task_analysis=task_analysis,
+                    execution_mode='single-phase',
+                    selected_model=selected_model,
+                    success=False,
+                    duration_seconds=time.time() - start_time,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    tool_calls=tool_calls_executed
+                )
 
             # Emit error event
             event_bus = get_event_bus()

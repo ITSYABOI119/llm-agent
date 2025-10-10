@@ -6,7 +6,9 @@ ollama:
   port: 11434
   model: "qwen2.5-coder:7b"  # Default model (used when multi-model is disabled)
 
-  timeout: 300  # Increased to 5 minutes for complex queries
+  timeout: 300  # General timeout for simple operations
+  planning_timeout: 180  # Phase 1 Fix: Timeout for planning phase (3 min)
+  execution_timeout: 300  # Phase 1 Fix: Timeout for execution phase (5 min)
 
   # Context window settings
   num_ctx: 8192

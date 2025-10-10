@@ -111,15 +111,21 @@ class ModelRouter:
             tier = task_analysis_or_classification.get('tier')
             is_creative = task_analysis_or_classification.get('characteristics', {}).get('is_creative', False)
             is_multi_file = task_analysis_or_classification.get('characteristics', {}).get('is_multi_file', False)
+            file_count = task_analysis_or_classification.get('characteristics', {}).get('file_count', 0)
 
             # Use two-phase for complex tasks
             if tier == 'complex':
-                logging.info("Two-phase execution: openthinker (plan) → qwen (execute)")
+                logging.info("Two-phase execution: openthinker (plan) -> qwen (execute)")
                 return True
 
             # Also use for standard + creative + multi-file
             if tier == 'standard' and is_creative and is_multi_file:
                 logging.info("Two-phase execution: creative multi-file standard task")
+                return True
+
+            # PHASE 1 FIX: Force two-phase for 3+ file tasks (avoid openthinker single-phase timeout)
+            if is_multi_file and file_count >= 3:
+                logging.info(f"Two-phase execution: {file_count} files (avoiding single-phase timeout)")
                 return True
 
             return False

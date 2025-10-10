@@ -137,24 +137,63 @@ Be specific and creative. Provide actual content ideas, not placeholders.
 Format your response as a clear, structured plan:"""
 
         try:
+            # PHASE 1 FIX: Use longer timeout for planning phase (can be complex)
+            planning_timeout = self.config.get('ollama', {}).get('planning_timeout', 180)
+
+            # PHASE 1 FIX: Enable streaming for planning phase progress
+            streaming_enabled = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {}).get('enabled', False)
+            event_bus = get_event_bus()
+
             response = requests.post(
                 f"{self.api_url}/api/generate",
                 json={
                     "model": planning_model,
                     "prompt": planning_prompt,
-                    "stream": False,
+                    "stream": streaming_enabled,  # Stream if enabled
                     "options": {
                         "temperature": 0.8,  # Higher temp for creativity
                         "num_predict": 1024,
                         "num_ctx": 8192
                     }
                 },
-                timeout=self.config['ollama'].get('timeout', 120)
+                timeout=planning_timeout,
+                stream=streaming_enabled
             )
 
             if response.status_code == 200:
-                result = response.json()
-                plan = result.get('response', '')
+                plan = ""
+
+                if streaming_enabled:
+                    # Stream plan generation with progress updates
+                    import json
+                    chunk_count = 0
+                    for line in response.iter_lines():
+                        if line:
+                            try:
+                                chunk_data = json.loads(line)
+                                chunk = chunk_data.get('response', '')
+                                plan += chunk
+
+                                # Emit progress every 10 chunks
+                                chunk_count += 1
+                                if chunk_count % 10 == 0:
+                                    event_bus.publish('planning_progress', {
+                                        'length': len(plan),
+                                        'preview': plan[-100:] if len(plan) > 100 else plan
+                                    })
+
+                                # Show dots for progress
+                                if chunk_count % 5 == 0:
+                                    print(".", end="", flush=True)
+
+                            except json.JSONDecodeError:
+                                continue
+
+                    print()  # Newline after dots
+                else:
+                    # Non-streaming (fallback)
+                    result = response.json()
+                    plan = result.get('response', '')
 
                 # Strip any thinking tags if present
                 import re
@@ -171,6 +210,14 @@ Format your response as a clear, structured plan:"""
                     'error': f"API error: {response.status_code}"
                 }
 
+        except requests.exceptions.Timeout:
+            # PHASE 1 FIX: Graceful timeout handling
+            logging.error(f"Planning phase timeout after {planning_timeout}s")
+            return {
+                'success': False,
+                'error': f"Planning phase timed out after {planning_timeout}s. Try a simpler task or increase planning_timeout in config.",
+                'timeout': True
+            }
         except Exception as e:
             logging.error(f"Planning phase error: {e}")
             return {
@@ -204,6 +251,9 @@ TOOL: write_file | PARAMS: {{"path": "filename.ext", "content": "actual code her
 Output tool calls only:"""
 
         try:
+            # PHASE 1 FIX: Use longer timeout for execution phase (complex multi-file tasks)
+            execution_timeout = self.config.get('ollama', {}).get('execution_timeout', 240)
+
             response = requests.post(
                 f"{self.api_url}/api/generate",
                 json={
@@ -216,7 +266,7 @@ Output tool calls only:"""
                         "num_ctx": self.config['ollama'].get('num_ctx', 8192)
                     }
                 },
-                timeout=self.config['ollama'].get('timeout', 180)
+                timeout=execution_timeout
             )
 
             if response.status_code == 200:
@@ -265,6 +315,15 @@ Output tool calls only:"""
                     'error': f"API error: {response.status_code}"
                 }
 
+        except requests.exceptions.Timeout:
+            # PHASE 1 FIX: Graceful timeout handling for execution phase
+            logging.error(f"Execution phase timeout after {execution_timeout}s")
+            return {
+                'success': False,
+                'error': f"Execution phase timed out after {execution_timeout}s. The plan may be too complex. Try breaking into smaller tasks.",
+                'timeout': True,
+                'partial_plan': plan[:500]  # Return partial plan for context
+            }
         except Exception as e:
             logging.error(f"Execution phase error: {e}")
             return {

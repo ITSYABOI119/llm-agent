@@ -103,6 +103,14 @@ class ProgressIndicator:
                     )
             elif phase == 'parsing_tools':
                 self.console.print(f"[bold cyan]>> Preparing tools...[/bold cyan]")
+            elif phase == 'two_phase_start':
+                planning_model = data.get('planning_model', 'unknown')
+                execution_model = data.get('execution_model', 'unknown')
+                self.show_two_phase_start(planning_model, execution_model)
+            elif phase == 'planning':
+                self.console.print(f"[bold magenta]>> Phase 1: Planning with {model}...[/bold magenta]")
+            elif phase == 'execution':
+                self.console.print(f"[bold green]>> Phase 2: Executing with {model}...[/bold green]")
         else:
             # Simple text output
             if phase == 'initializing':
@@ -111,6 +119,16 @@ class ProgressIndicator:
                 print(f">> Thinking with {model}...")
             elif phase == 'parsing_tools':
                 print(">> Preparing tools...")
+            elif phase == 'two_phase_start':
+                planning_model = data.get('planning_model', 'unknown')
+                execution_model = data.get('execution_model', 'unknown')
+                print(f">> Two-Phase Execution")
+                print(f"   Planning: {planning_model}")
+                print(f"   Execution: {execution_model}")
+            elif phase == 'planning':
+                print(f">> Phase 1: Planning with {model}...")
+            elif phase == 'execution':
+                print(f">> Phase 2: Executing with {model}...")
 
     def _handle_thinking(self, data: Dict):
         """Handle thinking/reasoning event"""

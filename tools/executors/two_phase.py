@@ -3,7 +3,9 @@ Two-Phase Executor - Combines planning (reasoning model) with execution (code mo
 """
 import logging
 import requests
+import time
 from typing import Dict, Callable
+from tools.event_bus import get_event_bus
 
 
 class TwoPhaseExecutor:
@@ -36,12 +38,32 @@ class TwoPhaseExecutor:
                 }
             }
         """
+        # Get event bus for streaming
+        event_bus = get_event_bus()
+        streaming_enabled = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {}).get('enabled', False)
+
         logging.info("="*80)
         logging.info("TWO-PHASE EXECUTION STARTING")
         logging.info("="*80)
 
+        # Emit two-phase start event
+        if streaming_enabled:
+            event_bus.publish('status', {
+                'phase': 'two_phase_start',
+                'planning_model': planning_model,
+                'execution_model': execution_model
+            })
+
         # Phase 1: Planning with reasoning model
         logging.info(f"PHASE 1: Planning with {planning_model}")
+
+        # Emit planning phase start
+        if streaming_enabled:
+            event_bus.publish('status', {
+                'phase': 'planning',
+                'model': planning_model
+            })
+
         plan_result = self._planning_phase(user_message, planning_model)
 
         if not plan_result['success']:
@@ -57,6 +79,14 @@ class TwoPhaseExecutor:
 
         # Phase 2: Execution with code model
         logging.info(f"PHASE 2: Execution with {execution_model}")
+
+        # Emit execution phase start
+        if streaming_enabled:
+            event_bus.publish('status', {
+                'phase': 'execution',
+                'model': execution_model
+            })
+
         execution_result = self._execution_phase(
             user_message, plan, execution_model, parse_callback, execute_callback
         )
@@ -155,11 +185,18 @@ Format your response as a clear, structured plan:"""
 
         Takes the detailed plan and generates concrete tool calls
         """
+        # Check if we should pass full plan (Phase 1 Enhancement)
+        validation_config = self.config.get('ollama', {}).get('multi_model', {}).get('routing', {}).get('two_phase', {}).get('validation', {})
+        use_full_plan = validation_config.get('full_plan_in_execution', True)
+
+        # Use full plan or truncated (legacy behavior)
+        plan_text = plan if use_full_plan else plan[:1000]
+
         # Simplified, direct execution prompt
         execution_prompt = f"""Task: {original_request}
 
 Plan to implement:
-{plan[:1000]}
+{plan_text}
 
 Generate file creation tool calls in this format:
 TOOL: write_file | PARAMS: {{"path": "filename.ext", "content": "actual code here"}}
@@ -175,8 +212,8 @@ Output tool calls only:"""
                     "stream": False,
                     "options": {
                         "temperature": 0.3,  # Lower temp for reliable execution
-                        "num_predict": 4096,  # Much more tokens for multi-file generation
-                        "num_ctx": 8192
+                        "num_predict": self.config['ollama'].get('num_predict', 6144),  # Use config value (Phase 1: 6144)
+                        "num_ctx": self.config['ollama'].get('num_ctx', 8192)
                     }
                 },
                 timeout=self.config['ollama'].get('timeout', 180)

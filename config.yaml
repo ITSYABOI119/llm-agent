@@ -170,6 +170,12 @@ execution_history:
   retention_days: 90  # Keep execution history for 90 days
   track_tool_details: true  # Track individual tool execution results
 
+# Error Recovery Settings (Phase 2)
+error_recovery:
+  enabled: true
+  max_retries: 3  # Maximum recovery attempts per error
+  log_recovery_attempts: true  # Log all recovery attempts to history
+
 # Metrics & Observability Settings (Phase 6)
 metrics:
   enabled: true

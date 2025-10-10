@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Callable, Optional
 from pathlib import Path
 from tools.event_bus import get_event_bus
 from tools.execution_history import ExecutionHistory  # Phase 2
+from tools.error_recovery import ErrorRecoveryExecutor  # Phase 2
 
 
 class SinglePhaseExecutor:
@@ -35,6 +36,10 @@ class SinglePhaseExecutor:
         # Phase 2: Execution history tracking
         history_enabled = config.get('execution_history', {}).get('enabled', True)
         self.history = ExecutionHistory() if history_enabled else None
+
+        # Phase 2: Error recovery
+        recovery_enabled = config.get('error_recovery', {}).get('enabled', True)
+        self.error_recovery = ErrorRecoveryExecutor(config) if recovery_enabled else None
 
     def execute(
         self,
@@ -332,6 +337,29 @@ Respond helpfully to user requests. Execute tools when needed."""
 
         except Exception as e:
             logging.error(f"Error in single-phase execution: {e}", exc_info=True)
+
+            # Phase 2: Attempt error recovery
+            if self.error_recovery:
+                logging.info("[RECOVERY] Attempting automatic error recovery...")
+
+                recovery_context = {
+                    'user_message': user_message,
+                    'tool_name': 'execute',
+                    'tool_params': {},
+                    'task_analysis': task_analysis
+                }
+
+                # Simplified retry callback (just re-raise for now - full implementation would retry execution)
+                def retry_callback(prompt, params):
+                    raise e  # For now, don't actually retry (would need full re-execution logic)
+
+                recovery_result = self.error_recovery.attempt_recovery(e, recovery_context, retry_callback)
+
+                if recovery_result.get('recovered'):
+                    logging.info("[RECOVERY] Successfully recovered from error!")
+                    # Would return recovery_result['result'] if retry was implemented
+                else:
+                    logging.warning(f"[RECOVERY] Could not recover: {recovery_result.get('reason')}")
 
             # Phase 2: Log failed execution to history
             if self.history and task_analysis:

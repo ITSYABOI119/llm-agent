@@ -136,6 +136,12 @@ class ModelRouter:
             is_creative = task_analysis_or_classification.get('is_creative', False)
             is_multi_file = task_analysis_or_classification.get('is_multi_file', False)
             intent = task_analysis_or_classification.get('intent')
+            expected_tool_calls = task_analysis_or_classification.get('expected_tool_calls', 0)
+
+            # PHASE 1 FIX: Force two-phase for 3+ file tasks (works with legacy TaskAnalyzer too)
+            if is_multi_file and expected_tool_calls >= 3:
+                logging.info(f"Two-phase execution: {expected_tool_calls} operations (avoiding single-phase timeout)")
+                return True
 
             use_two_phase = (
                 complexity in ['medium', 'complex'] and

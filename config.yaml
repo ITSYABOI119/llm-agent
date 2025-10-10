@@ -10,7 +10,7 @@ ollama:
 
   # Context window settings
   num_ctx: 8192
-  num_predict: 2048
+  num_predict: 6144  # Increased from 2048 for better multi-file tasks (Phase 1 Enhancement)
   temperature: 0.7
   top_p: 0.9
 
@@ -52,6 +52,19 @@ ollama:
         use_for_complex_creative: true  # Use for complex creative tasks
         planning_model: "openthinker3-7b"  # Model for Phase 1 (planning)
         execution_model: "qwen2.5-coder:7b"  # Model for Phase 2 (execution)
+
+        # Plan validation settings (Phase 1 Enhancement)
+        validation:
+          enabled: false  # Will enable in Phase 3
+          max_refinement_iterations: 2
+          full_plan_in_execution: true  # Pass complete plan, don't truncate
+
+    # Streaming execution (Phase 1 Enhancement)
+    streaming:
+      enabled: true  # Enable real-time progress feedback
+      use_rich_progress: true  # Use Rich library for fancy progress bars
+      show_thinking: true  # Show LLM reasoning in real-time
+      show_tool_execution: true  # Show tool calls as they execute
 
 # Agent Settings
 agent:

@@ -134,9 +134,22 @@ class Agent:
         # Phase 7: Verification Workflow (extracted verification logic)
         self.verification_workflow = VerificationWorkflow(self)
 
+        # Phase 1 Enhancement: Streaming with progress indicator
+        from tools.progress_indicator import ProgressIndicator
+        from tools.event_bus import get_event_bus
+        streaming_config = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {})
+        use_rich = streaming_config.get('use_rich_progress', True)
+        self.progress_indicator = ProgressIndicator(use_rich=use_rich)
+
+        # Subscribe progress indicator to event bus if streaming is enabled
+        if streaming_config.get('enabled', False):
+            event_bus = get_event_bus()
+            event_bus.subscribe(self.progress_indicator.handle_event)
+            logging.info("Streaming progress indicator enabled")
+
         # Note: Model swaps take ~2.5s on Windows (disk → VRAM)
         # Phase 2 minimizes swaps, Phase 3 adds smart retries
-        logging.info("Agent initialized with Phase 1+2+3+7 improvements")
+        logging.info("Agent initialized with Phase 1+2+3+7+Streaming improvements")
 
         logging.info(f"Agent initialized: {self.config['agent']['name']}")
         logging.info(f"Workspace: {self.config['agent']['workspace']}")
@@ -495,7 +508,7 @@ Output ONLY tool calls, nothing else:"""
         if tool_response:
             logging.info(f"Conversion response: {tool_response[:200]}...")
             # Parse the generated tool calls
-            return self._parse_standard_format(tool_response)
+            return self.tool_parser._parse_standard_format(tool_response)
 
         return []
 

@@ -6,8 +6,10 @@ Executes tasks using a single model for both reasoning and action
 import logging
 import requests
 import re
+import time
 from typing import Dict, Any, List, Callable, Optional
 from pathlib import Path
+from tools.event_bus import get_event_bus
 
 
 class SinglePhaseExecutor:
@@ -57,6 +59,17 @@ class SinglePhaseExecutor:
             Final response message
         """
         try:
+            # Get event bus for streaming
+            event_bus = get_event_bus()
+            streaming_enabled = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {}).get('enabled', False)
+
+            # Emit initialization event
+            if streaming_enabled:
+                event_bus.publish('status', {
+                    'phase': 'initializing',
+                    'model': selected_model
+                })
+
             # Build reasoning instructions
             is_reasoning_model = self._is_reasoning_model(selected_model)
 
@@ -146,9 +159,24 @@ CODEBASE UNDERSTANDING (RAG):
 - RAG search helps you understand existing code before making changes
 - Check rag_stats to see if codebase is indexed
 
+IMPORTANT: Always acknowledge the user's request with a brief conversational response BEFORE tool calls.
+
+Example:
+User: Create hello.txt with 'Hello World'
+Assistant: I'll create that file for you.
+TOOL: write_file | PARAMS: {{"path": "hello.txt", "content": "Hello World"}}
+
 Respond helpfully to user requests. Execute tools when needed."""
 
+            # Emit LLM call event
+            if streaming_enabled:
+                event_bus.publish('status', {
+                    'phase': 'calling_llm',
+                    'model': selected_model
+                })
+
             # Call Ollama API
+            start_time = time.time()
             response = requests.post(
                 f"{self.api_url}/api/generate",
                 json={
@@ -188,12 +216,34 @@ Respond helpfully to user requests. Execute tools when needed."""
             if tool_calls:
                 # Execute all tools and collect results
                 tool_results = []
-                for tool_call in tool_calls:
+                for i, tool_call in enumerate(tool_calls):
                     tool_name = tool_call.get('tool')
                     params = tool_call.get('params', {})
 
+                    # Emit tool execution start event
+                    if streaming_enabled:
+                        event_bus.publish('tool_call', {
+                            'tool': tool_name,
+                            'params': params,
+                            'status': 'executing',
+                            'index': i,
+                            'total': len(tool_calls)
+                        })
+
                     logging.info(f"Executing tool: {tool_name} with params: {params}")
+                    tool_start = time.time()
                     result = execute_callback(tool_name, params)
+                    tool_time = time.time() - tool_start
+
+                    # Emit tool result event
+                    if streaming_enabled:
+                        event_bus.publish('tool_result', {
+                            'tool': tool_name,
+                            'result': result,
+                            'execution_time': tool_time,
+                            'status': 'success' if result.get('success') else 'failed'
+                        })
+
                     tool_results.append({
                         'tool': tool_name,
                         'result': result
@@ -240,10 +290,27 @@ Respond helpfully to user requests. Execute tools when needed."""
             # Add to session history
             history_callback("assistant", final_response)
 
+            # Emit completion event
+            if streaming_enabled:
+                event_bus.publish('complete', {
+                    'status': 'success',
+                    'total_time': time.time() - start_time
+                })
+
             return final_response
 
         except Exception as e:
             logging.error(f"Error in single-phase execution: {e}", exc_info=True)
+
+            # Emit error event
+            event_bus = get_event_bus()
+            streaming_enabled = self.config.get('ollama', {}).get('multi_model', {}).get('streaming', {}).get('enabled', False)
+            if streaming_enabled:
+                event_bus.publish('complete', {
+                    'status': 'error',
+                    'error': str(e)
+                })
+
             return f"Error: {str(e)}"
 
     def _is_reasoning_model(self, model_name: str) -> bool:

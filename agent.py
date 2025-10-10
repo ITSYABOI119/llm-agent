@@ -147,6 +147,9 @@ class Agent:
             event_bus.subscribe(self.progress_indicator.handle_event)
             logging.info("Streaming progress indicator enabled")
 
+        # Phase 2: Tool parser for reasoning model responses
+        self.tool_parser = ToolParser()
+
         # Note: Model swaps take ~2.5s on Windows (disk → VRAM)
         # Phase 2 minimizes swaps, Phase 3 adds smart retries
         logging.info("Agent initialized with Phase 1+2+3+7+Streaming improvements")

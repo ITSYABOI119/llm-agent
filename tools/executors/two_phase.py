@@ -1,5 +1,7 @@
 """
 Two-Phase Executor - Combines planning (reasoning model) with execution (code model)
+
+Phase 3 Enhancement: Plan validation, refinement, and execution monitoring
 """
 import logging
 import requests
@@ -7,10 +9,21 @@ import time
 from typing import Dict, Callable, Optional, Any
 from tools.event_bus import get_event_bus
 from tools.execution_history import ExecutionHistory  # Phase 2
+from tools.plan_validator import PlanValidator  # Phase 3
+from tools.plan_refiner import PlanRefiner  # Phase 3
+from tools.execution_monitor import ExecutionMonitor  # Phase 3
 
 
 class TwoPhaseExecutor:
-    """Executes complex tasks in two phases: Plan → Execute"""
+    """
+    Executes complex tasks in two phases: Plan → Execute
+
+    Phase 3 Enhancements:
+    - Plan validation with scoring (0-1)
+    - Iterative plan refinement (max 2 iterations)
+    - Execution monitoring with feedback
+    - Replanning on critical failures
+    """
 
     def __init__(self, api_url: str, config: Dict):
         self.api_url = api_url
@@ -19,6 +32,20 @@ class TwoPhaseExecutor:
         # Phase 2: Execution history tracking
         history_enabled = config.get('execution_history', {}).get('enabled', True)
         self.history = ExecutionHistory() if history_enabled else None
+
+        # Phase 3: Plan validation and refinement
+        validation_config = config.get('ollama', {}).get('multi_model', {}).get('routing', {}).get('two_phase', {}).get('validation', {})
+        self.validation_enabled = validation_config.get('enabled', False)
+
+        if self.validation_enabled:
+            self.plan_validator = PlanValidator()
+            self.plan_refiner = PlanRefiner(config)
+            self.execution_monitor = ExecutionMonitor(config)
+            logging.info("[PHASE 3] Plan validation and refinement enabled")
+        else:
+            self.plan_validator = None
+            self.plan_refiner = None
+            self.execution_monitor = None
 
     def execute(self, user_message: str, planning_model: str, execution_model: str,
                 parse_callback: Callable, execute_callback: Callable,
@@ -101,6 +128,74 @@ class TwoPhaseExecutor:
         logging.info(f"Planning complete. Plan length: {len(plan)} chars")
         logging.info(f"Plan preview: {plan[:200]}...")
 
+        # Phase 3: Validate and refine plan (if enabled)
+        if self.validation_enabled and self.plan_validator:
+            logging.info("[PHASE 3] Validating plan...")
+
+            validation_result = self.plan_validator.validate_plan(plan, user_message)
+
+            logging.info(f"[PHASE 3] Plan validation: Score {validation_result['score']:.2f}, "
+                        f"Valid: {validation_result['valid']}")
+
+            # Refine plan if validation failed (max 2 iterations)
+            refinement_attempts = 0
+            max_refinement_iterations = self.config.get('ollama', {}).get('multi_model', {}).get('routing', {}).get('two_phase', {}).get('validation', {}).get('max_refinement_iterations', 2)
+
+            while not validation_result['valid'] and refinement_attempts < max_refinement_iterations:
+                refinement_attempts += 1
+                logging.info(f"[PHASE 3] Refining plan (attempt {refinement_attempts}/{max_refinement_iterations})...")
+
+                # Create model callback for refiner
+                def call_model_for_refinement(prompt: str, model_name: str) -> str:
+                    try:
+                        response = requests.post(
+                            f"{self.api_url}/api/generate",
+                            json={
+                                "model": model_name,
+                                "prompt": prompt,
+                                "stream": False,
+                                "options": {
+                                    "temperature": 0.8,
+                                    "num_predict": 1024,
+                                    "num_ctx": 8192
+                                }
+                            },
+                            timeout=self.config.get('ollama', {}).get('planning_timeout', 180)
+                        )
+                        if response.status_code == 200:
+                            return response.json().get('response', '')
+                        return ''
+                    except Exception as e:
+                        logging.error(f"[PHASE 3] Error calling model for refinement: {e}")
+                        return ''
+
+                # Refine plan
+                refinement_result = self.plan_refiner.refine_plan(
+                    plan,
+                    validation_result,
+                    user_message,
+                    call_model_for_refinement
+                )
+
+                if refinement_result['success'] and refinement_result['refinement_applied']:
+                    plan = refinement_result['refined_plan']
+                    logging.info(f"[PHASE 3] Plan refined ({len(plan)} chars)")
+
+                    # Re-validate refined plan
+                    validation_result = self.plan_validator.validate_plan(plan, user_message)
+                    logging.info(f"[PHASE 3] Refined plan validation: Score {validation_result['score']:.2f}, "
+                                f"Valid: {validation_result['valid']}")
+                else:
+                    logging.warning("[PHASE 3] Refinement failed, continuing with original plan")
+                    break
+
+            # Log final validation result
+            if validation_result['valid']:
+                logging.info("[PHASE 3] Plan validated successfully")
+            else:
+                logging.warning(f"[PHASE 3] Plan validation incomplete (score: {validation_result['score']:.2f}), "
+                              "proceeding with best-effort plan")
+
         # Phase 2: Execution with code model
         logging.info(f"PHASE 2: Execution with {execution_model}")
 
@@ -114,6 +209,53 @@ class TwoPhaseExecutor:
         execution_result = self._execution_phase(
             user_message, plan, execution_model, parse_callback, execute_callback, tool_calls_executed
         )
+
+        # Phase 3: Monitor execution results (if enabled)
+        monitor_result = None
+        if self.validation_enabled and self.execution_monitor and tool_calls_executed:
+            logging.info("[PHASE 3] Monitoring execution results...")
+
+            monitor_result = self.execution_monitor.monitor_execution(
+                plan,
+                tool_calls_executed
+            )
+
+            logging.info(f"[PHASE 3] Execution monitoring: {monitor_result['status']}, "
+                        f"Success rate: {monitor_result['success_rate']*100:.0f}%")
+
+            # Log monitoring report
+            report = self.execution_monitor.generate_execution_report(monitor_result)
+            logging.info(f"[PHASE 3] Execution Report:\n{report}")
+
+            # Check for early termination
+            if self.execution_monitor.should_terminate_early(monitor_result):
+                logging.warning("[PHASE 3] Early termination recommended due to critical failure")
+
+                # Log failed execution with monitoring data
+                if self.history and task_analysis:
+                    self.history.log_execution(
+                        task_text=user_message,
+                        task_analysis=task_analysis,
+                        execution_mode='two-phase',
+                        planning_model=planning_model,
+                        execution_model=execution_model,
+                        success=False,
+                        duration_seconds=time.time() - start_time,
+                        error_type='CriticalExecutionFailure',
+                        error_message=monitor_result.get('replan_reason', 'Critical failure during execution'),
+                        tool_calls=tool_calls_executed
+                    )
+
+                return {
+                    'success': False,
+                    'error': f"Execution terminated early: {monitor_result.get('replan_reason')}",
+                    'plan': plan,
+                    'monitor_result': monitor_result,
+                    'phases': {
+                        'planning': plan_result,
+                        'execution': execution_result
+                    }
+                }
 
         if not execution_result['success']:
             # Phase 2: Log failed execution (execution phase)
@@ -135,6 +277,7 @@ class TwoPhaseExecutor:
                 'success': False,
                 'error': f"Execution phase failed: {execution_result.get('error')}",
                 'plan': plan,
+                'monitor_result': monitor_result,
                 'phases': {
                     'planning': plan_result,
                     'execution': execution_result
@@ -162,6 +305,7 @@ class TwoPhaseExecutor:
             'plan': plan,
             'execution_result': execution_result['result'],
             'tool_calls': execution_result.get('tool_calls', []),
+            'monitor_result': monitor_result,  # Phase 3: Include monitoring results
             'phases': {
                 'planning': plan_result,
                 'execution': execution_result

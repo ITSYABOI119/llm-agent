@@ -55,11 +55,24 @@ ollama:
         planning_model: "openthinker3-7b"  # Model for Phase 1 (planning)
         execution_model: "qwen2.5-coder:7b"  # Model for Phase 2 (execution)
 
-        # Plan validation settings (Phase 1 Enhancement)
+        # Plan validation settings (Phase 3)
         validation:
-          enabled: false  # Will enable in Phase 3
-          max_refinement_iterations: 2
+          enabled: true  # Enable plan validation and refinement
+          max_refinement_iterations: 2  # Maximum plan refinement attempts
+          min_plan_score: 0.7  # Minimum score for plan to be considered valid
           full_plan_in_execution: true  # Pass complete plan, don't truncate
+
+        # Execution settings (Phase 3)
+        execution:
+          max_tokens: 6144  # Maximum tokens for execution (increased from 4096)
+          early_termination_on_critical_failure: true  # Stop execution on critical errors
+          monitor_execution: true  # Monitor tool execution results
+
+        # Feedback loop settings (Phase 3)
+        feedback_loop:
+          enabled: true  # Enable execution feedback loop
+          replan_on_failure_rate: 0.5  # Replan if success rate < 50%
+          max_replan_attempts: 1  # Maximum replanning attempts
 
     # Streaming execution (Phase 1 Enhancement)
     streaming:

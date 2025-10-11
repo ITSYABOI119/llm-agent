@@ -176,6 +176,36 @@ error_recovery:
   max_retries: 3  # Maximum recovery attempts per error
   log_recovery_attempts: true  # Log all recovery attempts to history
 
+# Semantic Context Settings (Phase 3)
+context:
+  semantic:
+    enabled: false  # Enable semantic context engine (requires RAG setup)
+
+    embedding:
+      model: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model
+      cache_embeddings: true  # Cache embeddings for faster searches
+      update_interval: 300  # Re-embed changed files every 5 minutes
+
+    relevance:
+      min_similarity: 0.3  # Minimum similarity score (0-1) for file inclusion
+      max_files: 10  # Maximum number of files to include in context
+      chunk_size: 500  # Tokens per file chunk
+      include_dependencies: true  # Include files from dependency graph
+
+    prioritization:
+      token_budget: 6000  # Token budget for context (reserve 2K for prompt/response)
+      weights:
+        critical: 1.0  # Files explicitly mentioned in query
+        high: 0.7      # High semantic similarity
+        medium: 0.4    # Medium similarity or dependencies
+        low: 0.2       # General project context
+
+  dependency_graph:
+    enabled: false  # Enable dependency graph builder
+    cache_path: "logs/dependency_graph.pkl"  # Cache file path
+    rebuild_on_file_change: true  # Rebuild when files change
+    max_depth: 2  # Maximum hops in dependency traversal
+
 # Metrics & Observability Settings (Phase 6)
 metrics:
   enabled: true

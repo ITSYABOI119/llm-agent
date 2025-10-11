@@ -99,7 +99,8 @@ class ContextGatherer:
         # 4. Check for dependencies (package.json, requirements.txt, etc.)
         context['dependencies'] = self._check_dependencies()
 
-        # 5. Find similar code patterns
+        # 5. Find similar code patterns (if we have keywords)
+        keywords = keywords if 'keywords' in locals() else []
         context['patterns_found'] = self._find_code_patterns(keywords)
 
         # 6. Generate summary
@@ -128,6 +129,42 @@ class ContextGatherer:
         found_keywords.extend(quoted)
 
         return list(set(found_keywords))[:5]  # Limit to top 5
+
+    def _gather_semantic_context(self, user_request: str) -> Dict:
+        """
+        Gather context using semantic search (Phase 3)
+
+        Args:
+            user_request: User's request
+
+        Returns:
+            {
+                'context': str - Formatted semantic context
+                'files': List[str] - List of relevant files
+                'tokens_used': int - Tokens used
+            }
+        """
+        try:
+            # Get configuration
+            semantic_config = self.config.get('context', {}).get('semantic', {})
+            max_files = semantic_config.get('relevance', {}).get('max_files', 10)
+            token_budget = semantic_config.get('prioritization', {}).get('token_budget', 6000)
+
+            # Use semantic engine to gather context
+            result = self.semantic_engine.gather_semantic_context(
+                query=user_request,
+                max_files=max_files,
+                token_budget=token_budget
+            )
+
+            logging.info(f"[SEMANTIC] Gathered context: {result.get('tokens_used', 0)} tokens, "
+                        f"{len(result.get('files', []))} files")
+
+            return result
+
+        except Exception as e:
+            logging.error(f"[SEMANTIC] Error gathering semantic context: {e}")
+            return {'context': '', 'files': [], 'tokens_used': 0}
 
     def _search_relevant_files(self, keywords: List[str]) -> List[str]:
         """Search for files containing keywords (grep pattern)"""
@@ -244,11 +281,21 @@ class ContextGatherer:
         return " | ".join(summary_parts) if summary_parts else "No context gathered"
 
     def format_for_llm(self, context: Dict) -> str:
-        """Format gathered context for LLM consumption"""
+        """
+        Format gathered context for LLM consumption
+
+        Phase 3: Includes semantic context if available
+        """
         formatted = "=== GATHERED CONTEXT ===\n\n"
 
         if context['summary']:
             formatted += f"Summary: {context['summary']}\n\n"
+
+        # Phase 3: Include semantic context if available
+        if context.get('semantic_context'):
+            formatted += "=== SEMANTIC CONTEXT ===\n"
+            formatted += context['semantic_context']
+            formatted += "\n=== END SEMANTIC CONTEXT ===\n\n"
 
         if context['project_structure']:
             formatted += f"{context['project_structure']}\n\n"

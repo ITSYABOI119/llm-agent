@@ -19,41 +19,101 @@ ollama:
   # RAM preloading for 10-20x faster model swaps (Cursor optimization)
   keep_alive: "60m"  # Keep models in RAM for 1 hour
 
-  # ========== MULTI-MODEL SYSTEM ==========
+  # ========== MULTI-MODEL SYSTEM (CURSOR-STYLE ARCHITECTURE) ==========
   multi_model:
     enabled: true  # Enable intelligent model routing
 
+    # Architecture: openthinker3-7b orchestrates, delegates to specialists
+    # Optimized for RTX 2070 8GB VRAM
     models:
-      # Reasoning model - for planning, analysis, creative thinking
-      reasoning:
+      # Main Orchestrator - Central "brain" for all tasks
+      orchestrator:
         name: "openthinker3-7b"
-        description: "Reasoning and creative planning"
-        use_for: ["analysis", "planning", "creative_content"]
-        max_tool_calls: 2  # Works best for simple tasks
+        description: "Main orchestrator - coordinates all tasks"
+        use_for: ["coordination", "reasoning", "planning", "orchestration", "task_analysis"]
+        vram_usage: "4.7GB"
+        notes: "Primary model loaded for all tasks. Decides when to delegate to specialists."
 
-      # Execution model - for reliable code generation
-      execution:
+      # Tool Call Formatter - Reliable structured output generation
+      tool_formatter:
+        name: "phi3:mini"
+        description: "Reliable tool call formatting"
+        use_for: ["tool_call_generation", "structured_output", "tool_formatting"]
+        vram_usage: "2.2GB"
+        notes: "Fixes 'qwen isnt good for tool calls'. Small enough to keep loaded with orchestrator (6.9GB total)."
+
+      # Code Generation Specialist - Fast, specialized code writing
+      code_generation:
         name: "qwen2.5-coder:7b"
-        description: "Code generation and file operations"
-        use_for: ["code_generation", "file_operations", "multi_file_tasks"]
+        description: "Code generation specialist"
+        use_for: ["code_generation", "code_refactoring", "multi_file_code"]
+        vram_usage: "4.7GB"
+        notes: "Delegated to by orchestrator for code writing tasks. Swapped in from RAM as needed (~500ms)."
 
-      # Complex reasoning model - for very complex tasks (optional)
+      # Advanced Reasoning - For complex debugging and analysis
+      advanced_reasoning:
+        name: "llama3.1:8b"
+        description: "Advanced reasoning for complex tasks"
+        use_for: ["debugging", "complex_analysis", "edge_case_handling"]
+        enabled: true  # Can be used when orchestrator needs extra reasoning power
+        vram_usage: "4.9GB"
+        notes: "Larger model for complex debugging. Use sparingly (model swap overhead)."
+
+      # Heavy Reasoning - Very complex tasks only (disabled by default)
       complex_reasoning:
         name: "deepseek-r1:14b"
-        description: "Advanced reasoning for complex analysis"
+        description: "Heavy reasoning for extremely complex tasks"
         use_for: ["complex_reasoning", "multi_step_analysis"]
-        enabled: false  # Disabled by default (slower, uses more resources)
+        enabled: false  # 9GB VRAM - maxes out GPU alone, slow
+        vram_usage: "9.0GB"
+        notes: "Disabled by default. Exceeds VRAM alone, requires CPU/RAM offloading (very slow)."
 
     # Routing configuration
     routing:
       auto_select: true  # Automatically pick best model for each task
 
-      # Two-phase execution settings
+      # Cursor-style routing strategy
+      style: "cursor"  # Options: "cursor" (new), "hybrid" (legacy)
+
+      cursor_routing:
+        # Simple path: Direct orchestration (65-70% of tasks)
+        simple_path:
+          target_percentage: 0.65  # Aim for 65% of tasks
+          orchestrator_model: "openthinker3-7b"
+          tool_formatter_model: "phi3:mini"
+          code_delegate_model: "qwen2.5-coder:7b"
+
+          triggers:
+            max_files: 2  # Use simple path if <= 2 files
+            max_complexity: "standard"  # simple or standard complexity
+            not_creative: true  # Avoid simple path if creative
+
+        # Complex path: Planning → Validation → Orchestrated execution (30-35% of tasks)
+        complex_path:
+          target_percentage: 0.35  # Aim for 35% of tasks
+          planning_model: "openthinker3-7b"
+          orchestrator_model: "openthinker3-7b"
+          code_delegate_model: "qwen2.5-coder:7b"
+          tool_formatter_model: "phi3:mini"
+
+          triggers:
+            min_files: 3  # Use complex path if >= 3 files
+            min_complexity: "complex"  # complex tier
+            is_creative: true  # Use complex path if creative
+
+        # Delegation rules
+        delegation:
+          code_generation_threshold: 20  # Delegate to qwen if >20 lines of code
+          use_advanced_reasoning: false  # Use llama3.1:8b for debugging (disabled by default)
+          tool_calls_always_use_formatter: true  # Always use phi3:mini for tool calls
+
+      # Two-phase execution settings (now "complex path" in Cursor-style)
       two_phase:
         enabled: true  # Enable plan → execute workflow
         use_for_complex_creative: true  # Use for complex creative tasks
         planning_model: "openthinker3-7b"  # Model for Phase 1 (planning)
         execution_model: "qwen2.5-coder:7b"  # Model for Phase 2 (execution)
+        orchestrator_model: "openthinker3-7b"  # NEW: Orchestrator coordinates execution
 
         # Plan validation settings (Phase 3)
         validation:

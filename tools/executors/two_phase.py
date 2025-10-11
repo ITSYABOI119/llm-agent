@@ -1,7 +1,9 @@
 """
-Two-Phase Executor - Combines planning (reasoning model) with execution (code model)
+Two-Phase Executor (Cursor-Style Complex Path)
+Combines planning, validation, and orchestrated execution with specialist delegation
 
 Phase 3 Enhancement: Plan validation, refinement, and execution monitoring
+Cursor-Style: Orchestrator coordinates delegation to code and tool specialist models
 """
 import logging
 import requests
@@ -12,6 +14,7 @@ from tools.execution_history import ExecutionHistory  # Phase 2
 from tools.plan_validator import PlanValidator  # Phase 3
 from tools.plan_refiner import PlanRefiner  # Phase 3
 from tools.execution_monitor import ExecutionMonitor  # Phase 3
+from tools.delegation_manager import DelegationManager  # Cursor-style delegation
 
 
 class TwoPhaseExecutor:
@@ -47,18 +50,53 @@ class TwoPhaseExecutor:
             self.plan_refiner = None
             self.execution_monitor = None
 
+        # Cursor-style routing
+        routing_config = config.get('ollama', {}).get('multi_model', {}).get('routing', {})
+        self.routing_style = routing_config.get('style', 'cursor')
+        self.use_cursor_style = (self.routing_style == 'cursor')
+
+        # Initialize delegation manager for Cursor-style
+        if self.use_cursor_style:
+            self.delegation_manager = DelegationManager(config)
+            logging.info("[CURSOR-STYLE] TwoPhaseExecutor: Orchestrated complex path enabled")
+        else:
+            self.delegation_manager = None
+            logging.info("TwoPhaseExecutor: Legacy two-phase execution")
+
     def execute(self, user_message: str, planning_model: str, execution_model: str,
                 parse_callback: Callable, execute_callback: Callable,
                 task_analysis: Optional[Dict[str, Any]] = None) -> Dict:
         """
-        Execute a task in two phases
+        Execute a task in two phases (Complex Path in Cursor-style)
+
+        Cursor-Style Flow (when enabled):
+            1. PLANNING PHASE
+               - Orchestrator (openthinker3-7b) creates structured plan
+               - Plan validation with scoring (Phase 3)
+               - Iterative refinement if score < 0.7 (max 2 iterations)
+
+            2. EXECUTION PHASE
+               - Orchestrator coordinates execution
+               - Delegates code generation to qwen2.5-coder:7b
+               - Uses phi3:mini for tool call formatting
+               - Execution monitoring with feedback (Phase 3)
+
+            3. FEEDBACK LOOP
+               - Monitor success rate
+               - Replan if success rate < 50%
+
+        Legacy Flow (hybrid routing):
+            - Planning with reasoning model
+            - Execution with code model
+            - No delegation
 
         Args:
             user_message: Original user request
-            planning_model: Model for planning phase (e.g., openthinker3-7b)
-            execution_model: Model for execution phase (e.g., qwen2.5-coder:7b)
+            planning_model: Model for planning phase (in Cursor-style, always orchestrator)
+            execution_model: Model for execution phase (in Cursor-style, orchestrator coordinates)
             parse_callback: Function to parse tool calls from response
             execute_callback: Function to execute tool calls
+            task_analysis: Optional task analysis for delegation decisions
 
         Returns:
             {
@@ -71,6 +109,12 @@ class TwoPhaseExecutor:
                 }
             }
         """
+        # Cursor-style: Override models to use orchestrator
+        if self.use_cursor_style:
+            orchestrator_model = self.delegation_manager.get_orchestrator_model()
+            logging.info(f"[CURSOR-STYLE COMPLEX PATH] Using orchestrator: {orchestrator_model}")
+            planning_model = orchestrator_model
+            # Execution model stays as qwen for code delegation, but orchestrator coordinates
         # Phase 2: Initialize execution tracking
         start_time = time.time()
         tool_calls_executed = []

@@ -1,6 +1,7 @@
 """
-Single-Phase Executor
-Executes tasks using a single model for both reasoning and action
+Single-Phase Executor (Cursor-Style Simple Path)
+Orchestrator coordinates task execution and delegates to specialist models
+Optimized for RTX 2070 8GB VRAM
 """
 
 import logging
@@ -12,6 +13,7 @@ from pathlib import Path
 from tools.event_bus import get_event_bus
 from tools.execution_history import ExecutionHistory  # Phase 2
 from tools.error_recovery import ErrorRecoveryExecutor  # Phase 2
+from tools.delegation_manager import DelegationManager  # Cursor-style delegation
 
 
 class SinglePhaseExecutor:
@@ -41,6 +43,19 @@ class SinglePhaseExecutor:
         recovery_enabled = config.get('error_recovery', {}).get('enabled', True)
         self.error_recovery = ErrorRecoveryExecutor(config) if recovery_enabled else None
 
+        # Cursor-style routing
+        routing_config = config.get('ollama', {}).get('multi_model', {}).get('routing', {})
+        self.routing_style = routing_config.get('style', 'cursor')
+        self.use_cursor_style = (self.routing_style == 'cursor')
+
+        # Initialize delegation manager for Cursor-style
+        if self.use_cursor_style:
+            self.delegation_manager = DelegationManager(config)
+            logging.info("SinglePhaseExecutor: Cursor-style orchestration enabled")
+        else:
+            self.delegation_manager = None
+            logging.info("SinglePhaseExecutor: Legacy single-phase execution")
+
     def execute(
         self,
         user_message: str,
@@ -54,21 +69,38 @@ class SinglePhaseExecutor:
         task_analysis: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Execute task using single model.
+        Execute task using single model (Simple Path in Cursor-style).
+
+        Cursor-Style Flow (when enabled):
+            1. Orchestrator (openthinker3-7b) analyzes task
+            2. Orchestrator decides strategy:
+               - Handle directly, OR
+               - Delegate code to qwen2.5-coder:7b
+               - Use phi3:mini for tool call formatting
+            3. Execute tools and return results
+
+        Legacy Flow (hybrid routing):
+            - Single model handles everything directly
 
         Args:
             user_message: User's request
-            selected_model: Model to use
+            selected_model: Model to use (in Cursor-style, this is always orchestrator)
             session_context: Session file tracking context
             agent_rules: Project-specific rules from .agentrules
             tools_description: Available tools description
             parse_callback: Function to parse tool calls from LLM response
             execute_callback: Function to execute a tool
             history_callback: Function to add message to session history
+            task_analysis: Optional task analysis for delegation decisions
 
         Returns:
             Final response message
         """
+        # Cursor-style: Override model to use orchestrator
+        if self.use_cursor_style:
+            orchestrator_model = self.delegation_manager.get_orchestrator_model()
+            logging.info(f"[CURSOR-STYLE] Using orchestrator: {orchestrator_model}")
+            selected_model = orchestrator_model
         # Phase 2: Initialize execution tracking
         execution_id = None
         start_time = time.time()

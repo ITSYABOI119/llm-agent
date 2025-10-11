@@ -1,9 +1,11 @@
 """
-Model Router - Smart routing to minimize swaps (Phase 2)
-Routes 80% of tasks to qwen-only, reserves openthinker for complex tasks
+Model Router - Cursor-style routing with model delegation
+Routes tasks through orchestrator which delegates to specialists
+Optimized for RTX 2070 8GB VRAM
 """
 import logging
 from typing import Dict, Optional
+from tools.delegation_manager import DelegationManager
 
 
 class ModelRouter:
@@ -21,18 +23,38 @@ class ModelRouter:
         self.multi_model_config = config.get('ollama', {}).get('multi_model', {})
         self.enabled = self.multi_model_config.get('enabled', False)
 
-        # Model names
+        # Get routing style (cursor or hybrid)
+        routing_config = self.multi_model_config.get('routing', {})
+        self.routing_style = routing_config.get('style', 'cursor')  # Default to Cursor-style
+
+        # Model names from config
+        models_config = self.multi_model_config.get('models', {})
         self.models = {
-            'qwen': 'qwen2.5-coder:7b',           # Primary workhorse
-            'openthinker': 'openthinker3-7b',    # Planning/complex tasks
-            'deepseek': 'deepseek-r1:14b'        # Emergency/debugging
+            # Cursor-style models
+            'orchestrator': models_config.get('orchestrator', {}).get('name', 'openthinker3-7b'),
+            'tool_formatter': models_config.get('tool_formatter', {}).get('name', 'phi3:mini'),
+            'code_generation': models_config.get('code_generation', {}).get('name', 'qwen2.5-coder:7b'),
+            'advanced_reasoning': models_config.get('advanced_reasoning', {}).get('name', 'llama3.1:8b'),
+
+            # Legacy model names (for backward compatibility)
+            'qwen': 'qwen2.5-coder:7b',
+            'openthinker': 'openthinker3-7b',
+            'deepseek': 'deepseek-r1:14b'
         }
 
-        # Log configuration
-        if self.enabled:
-            logging.info("Smart routing enabled (Phase 2)")
-            logging.info(f"Strategy: Minimize swaps, qwen-first approach")
+        # Initialize delegation manager for Cursor-style routing
+        if self.routing_style == 'cursor':
+            self.delegation_manager = DelegationManager(config)
+            logging.info(f"Cursor-style routing enabled (optimized for RTX 2070 8GB VRAM)")
+            logging.info(f"  Orchestrator: {self.models['orchestrator']}")
+            logging.info(f"  Tool Formatter: {self.models['tool_formatter']}")
+            logging.info(f"  Code Specialist: {self.models['code_generation']}")
         else:
+            self.delegation_manager = None
+            logging.info("Hybrid routing enabled (legacy mode)")
+            logging.info(f"Strategy: Minimize swaps, qwen-first approach")
+
+        if not self.enabled:
             logging.info("Multi-model routing disabled")
 
     def select_model_from_classification(self, classification: Dict) -> str:
@@ -196,3 +218,112 @@ class ModelRouter:
             'total_swap_overhead': f"{total_swap_overhead:.1f}s",
             'avg_swap_overhead': f"{avg_swap_overhead:.2f}s"
         }
+
+    # ========== CURSOR-STYLE ROUTING METHODS ==========
+
+    def should_use_simple_path(self, classification: Dict) -> bool:
+        """
+        Determine if task should use simple path (direct orchestration)
+
+        Simple Path (65-70% of tasks):
+            - Single or simple tasks
+            - <= 2 files
+            - Not creative
+            - Orchestrator handles directly or delegates to specialists
+
+        Args:
+            classification: Output from TaskClassifier.classify()
+
+        Returns:
+            bool: True if simple path should be used
+        """
+        if self.routing_style != 'cursor':
+            return False  # Not applicable for hybrid routing
+
+        tier = classification.get('tier', 'standard')
+        characteristics = classification.get('characteristics', {})
+        file_count = characteristics.get('file_count', 0)
+        is_creative = characteristics.get('is_creative', False)
+
+        # Get simple path config
+        cursor_config = self.multi_model_config.get('routing', {}).get('cursor_routing', {})
+        simple_config = cursor_config.get('simple_path', {})
+        triggers = simple_config.get('triggers', {})
+
+        max_files = triggers.get('max_files', 2)
+        max_complexity = triggers.get('max_complexity', 'standard')
+
+        # Use simple path if:
+        # 1. Simple tier, OR
+        # 2. Standard tier + <= max_files + not creative
+        if tier == 'simple':
+            logging.info("[SIMPLE PATH] Simple tier task → direct orchestration")
+            return True
+
+        if tier == 'standard' and file_count <= max_files and not is_creative:
+            logging.info(f"[SIMPLE PATH] Standard task ({file_count} files, not creative) → direct orchestration")
+            return True
+
+        logging.info(f"[COMPLEX PATH] {tier} tier, {file_count} files, creative={is_creative} → full pipeline")
+        return False
+
+    def get_orchestrator_model(self) -> str:
+        """Get the main orchestrator model (openthinker3-7b)"""
+        return self.models.get('orchestrator', 'openthinker3-7b')
+
+    def get_tool_formatter_model(self) -> str:
+        """Get the tool call formatter model (phi3:mini)"""
+        return self.models.get('tool_formatter', 'phi3:mini')
+
+    def get_code_generation_model(self) -> str:
+        """Get the code generation specialist model (qwen2.5-coder:7b)"""
+        return self.models.get('code_generation', 'qwen2.5-coder:7b')
+
+    def get_advanced_reasoning_model(self) -> str:
+        """Get the advanced reasoning model (llama3.1:8b)"""
+        return self.models.get('advanced_reasoning', 'llama3.1:8b')
+
+    def get_delegation_strategy(
+        self,
+        task_description: str,
+        classification: Dict,
+        has_tool_calls: bool = False,
+        estimated_code_lines: Optional[int] = None
+    ) -> Dict:
+        """
+        Get delegation strategy for Cursor-style execution
+
+        Args:
+            task_description: Description of the task
+            classification: Output from TaskClassifier
+            has_tool_calls: Whether tool calls are expected
+            estimated_code_lines: Estimated lines of code
+
+        Returns:
+            Dictionary with delegation decisions
+        """
+        if self.routing_style != 'cursor' or not self.delegation_manager:
+            return {
+                'error': 'Cursor-style routing not enabled',
+                'routing_style': self.routing_style
+            }
+
+        return self.delegation_manager.get_delegation_strategy(
+            task_description,
+            classification,
+            has_tool_calls,
+            estimated_code_lines
+        )
+
+    def get_execution_path(self, classification: Dict) -> str:
+        """
+        Determine execution path (simple or complex)
+
+        Returns:
+            'simple_path' or 'complex_path'
+        """
+        if self.routing_style != 'cursor':
+            # Legacy routing: check two-phase
+            return 'complex_path' if self.should_use_two_phase(classification) else 'simple_path'
+
+        return 'simple_path' if self.should_use_simple_path(classification) else 'complex_path'

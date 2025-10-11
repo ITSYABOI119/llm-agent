@@ -1,6 +1,8 @@
 """
 Context Gatherer - Intelligently gather context using bash tools
 Implements Claude Code's "gather context" phase pattern
+
+Phase 3 Enhancement: Supports semantic context mode with embeddings
 """
 
 import logging
@@ -13,18 +15,37 @@ class ContextGatherer:
     """
     Gather context for tasks using smart file inspection
     (Claude Code pattern: use grep, find, tail instead of loading everything)
+
+    Phase 3: Can use semantic search via SemanticContextEngine
     """
 
-    def __init__(self, config: Dict, search_tools, fs_tools, token_counter=None):
+    def __init__(
+        self,
+        config: Dict,
+        search_tools,
+        fs_tools,
+        token_counter=None,
+        semantic_engine=None,
+        dependency_graph=None
+    ):
         self.config = config
         self.search_tools = search_tools
         self.fs_tools = fs_tools
         self.workspace = Path(config['agent']['workspace'])
         self.token_counter = token_counter
 
+        # Phase 3: Semantic context engine (optional)
+        self.semantic_engine = semantic_engine
+        self.dependency_graph = dependency_graph
+
+        # Check if semantic mode is enabled
+        self.semantic_enabled = config.get('context', {}).get('semantic', {}).get('enabled', False)
+
     def gather_for_task(self, user_request: str) -> Dict:
         """
         Intelligently gather context for a user request
+
+        Phase 3: Uses semantic search if enabled, falls back to keyword search
 
         Returns:
             {
@@ -32,7 +53,8 @@ class ContextGatherer:
                 'project_structure': str,
                 'dependencies': Dict,
                 'patterns_found': List[str],
-                'summary': str
+                'summary': str,
+                'semantic_context': str (if semantic mode enabled)
             }
         """
         logging.info("GATHER CONTEXT phase starting...")
@@ -42,16 +64,33 @@ class ContextGatherer:
             'project_structure': '',
             'dependencies': {},
             'patterns_found': [],
-            'summary': ''
+            'summary': '',
+            'semantic_context': ''
         }
 
-        # 1. Analyze request for keywords
-        keywords = self._extract_keywords(user_request)
-        logging.info(f"Keywords extracted: {keywords}")
+        # Phase 3: Try semantic search first if enabled
+        if self.semantic_enabled and self.semantic_engine:
+            logging.info("[PHASE 3] Using semantic context engine")
+            semantic_result = self._gather_semantic_context(user_request)
+            context['semantic_context'] = semantic_result.get('context', '')
+            context['relevant_files'] = semantic_result.get('files', [])
 
-        # 2. Search for relevant files (grep pattern)
-        if keywords:
-            context['relevant_files'] = self._search_relevant_files(keywords)
+            # If semantic search succeeded, we can skip keyword search
+            if context['relevant_files']:
+                logging.info(f"[PHASE 3] Semantic search found {len(context['relevant_files'])} files")
+            else:
+                logging.info("[PHASE 3] Semantic search found nothing, falling back to keyword search")
+                # Fall through to keyword search below
+
+        # Fallback: Use keyword-based search if semantic disabled or failed
+        if not context['relevant_files']:
+            # 1. Analyze request for keywords
+            keywords = self._extract_keywords(user_request)
+            logging.info(f"Keywords extracted: {keywords}")
+
+            # 2. Search for relevant files (grep pattern)
+            if keywords:
+                context['relevant_files'] = self._search_relevant_files(keywords)
 
         # 3. Get project structure (if creating new files)
         if any(word in user_request.lower() for word in ['create', 'new', 'build', 'generate']):

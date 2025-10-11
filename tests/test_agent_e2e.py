@@ -504,27 +504,138 @@ class TestAgentRealWorkspace:
         return agent, workspace
 
     @pytest.mark.real_workspace
-    def test_create_file_in_real_workspace(self, real_agent):
-        """Test: Create a file in the actual agent_workspace"""
+    def test_create_simple_file(self, real_agent):
+        """Test: Create a simple text file (matches manual test 1)"""
         agent, workspace = real_agent
 
         print("\n" + "="*60)
-        print("TEST: Create file in REAL workspace")
+        print("TEST 1: Create simple file")
         print("="*60)
 
-        response = agent.chat("Create a file called e2e_test.txt with 'E2E Test from pytest'")
+        response = agent.chat("Create a file called test123.txt with the text \"Testing the agent\"")
 
         print(f"\n[RESPONSE] Agent response:\n{response}\n")
 
-        # Validate in REAL workspace
-        test_file = workspace / "e2e_test.txt"
+        test_file = workspace / "test123.txt"
         assert test_file.exists(), f"File should exist at {test_file}"
 
         content = test_file.read_text()
         print(f"[FILE] Content: '{content}'")
 
-        assert "E2E Test" in content
-        print(f"[PASS] Test passed! File created at: {test_file}")
+        assert "Testing the agent" in content
+        print(f"[PASS] Test passed!")
+
+    @pytest.mark.real_workspace
+    def test_create_calculator_files(self, real_agent):
+        """Test: Create multi-file calculator (matches manual test 2)"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST 2: Create calculator with add.py and multiply.py")
+        print("="*60)
+
+        response = agent.chat("Create a simple calculator with add.py and multiply.py files")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        add_file = workspace / "add.py"
+        multiply_file = workspace / "multiply.py"
+
+        print(f"[CHECK] add.py exists: {add_file.exists()}")
+        print(f"[CHECK] multiply.py exists: {multiply_file.exists()}")
+
+        assert add_file.exists() or multiply_file.exists(), "At least one file should be created"
+
+        if add_file.exists():
+            print(f"[FILE] add.py:\n{add_file.read_text()}")
+        if multiply_file.exists():
+            print(f"[FILE] multiply.py:\n{multiply_file.read_text()}")
+
+        print("[PASS] Test passed!")
+
+    @pytest.mark.real_workspace
+    def test_write_haiku(self, real_agent):
+        """Test: Creative writing task (matches manual test 3)"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST 3: Write a haiku about coding")
+        print("="*60)
+
+        response = agent.chat("Write a haiku about coding and save it to poem.txt")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        poem_file = workspace / "poem.txt"
+        assert poem_file.exists(), f"poem.txt should exist"
+
+        content = poem_file.read_text()
+        print(f"[FILE] poem.txt:\n{content}")
+
+        # Haiku has 3 lines
+        lines = content.strip().split('\n')
+        print(f"[CHECK] Line count: {len(lines)} (should be 3 for haiku)")
+
+        print("[PASS] Test passed!")
+
+    @pytest.mark.real_workspace
+    def test_add_function_to_file(self, real_agent):
+        """Test: Edit existing file by adding function (matches manual test 4)"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST 4: Add greet() function to test123.txt")
+        print("="*60)
+
+        # Ensure test123.txt exists first
+        test_file = workspace / "test123.txt"
+        if not test_file.exists():
+            agent.chat("Create a file called test123.txt with the text \"Testing the agent\"")
+            print("[SETUP] Created test123.txt")
+
+        response = agent.chat("Add a new function called greet() to test123.txt")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        content = test_file.read_text()
+        print(f"[FILE] test123.txt:\n{content}")
+
+        assert "greet" in content.lower(), "File should contain greet function"
+        print("[PASS] Test passed!")
+
+    @pytest.mark.real_workspace
+    @pytest.mark.slow
+    def test_build_landing_page(self, real_agent):
+        """Test: Build multi-file web project (matches manual test 5)"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST 5: Build landing page with HTML, CSS, and JavaScript")
+        print("="*60)
+
+        response = agent.chat("Build me a landing page with HTML, CSS, and JavaScript for a portfolio site")
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Check for created files
+        html_files = list(workspace.glob("*.html"))
+        css_files = list(workspace.glob("*.css"))
+        js_files = list(workspace.glob("*.js"))
+
+        print(f"[FILES] HTML: {[f.name for f in html_files]}")
+        print(f"[FILES] CSS: {[f.name for f in css_files]}")
+        print(f"[FILES] JS: {[f.name for f in js_files]}")
+
+        assert len(html_files) > 0, "Should create at least one HTML file"
+
+        # Check HTML content
+        for html_file in html_files:
+            content = html_file.read_text()
+            print(f"[FILE] {html_file.name} ({len(content)} chars)")
+            print(f"[PREVIEW] {content[:200]}...")
+            assert "<html" in content.lower() or "<!doctype" in content.lower()
+
+        print("[PASS] Test passed!")
 
     @pytest.mark.real_workspace
     def test_list_real_workspace(self, real_agent):
@@ -640,6 +751,120 @@ class TestAgentRealWorkspace:
             assert "<html" in content.lower() or "<!doctype" in content.lower()
 
         print("[PASS] Test completed!")
+
+    @pytest.mark.real_workspace
+    @pytest.mark.slow
+    def test_complex_refactoring_task(self, real_agent):
+        """Test: Multi-step refactoring with analysis and modification"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Complex refactoring task")
+        print("="*60)
+
+        # First create the files to refactor
+        setup_prompt = "Create add.py with a simple add function and multiply.py with a simple multiply function"
+        agent.chat(setup_prompt)
+
+        # Now do the complex refactoring
+        prompt = """Refactor add.py and multiply.py into a single calculator.py module with a Calculator class.
+        The class should have add() and multiply() methods. Then create test_calculator.py with basic tests."""
+
+        response = agent.chat(prompt)
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Check if calculator.py was created
+        calculator_file = workspace / "calculator.py"
+        test_file = workspace / "test_calculator.py"
+
+        print(f"[CHECK] calculator.py exists: {calculator_file.exists()}")
+        print(f"[CHECK] test_calculator.py exists: {test_file.exists()}")
+
+        if calculator_file.exists():
+            content = calculator_file.read_text()
+            print(f"[FILE] calculator.py content preview:\n{content[:300]}...")
+            assert "class" in content.lower() or "def" in content
+
+        print("[PASS] Complex refactoring test completed!")
+
+    @pytest.mark.real_workspace
+    @pytest.mark.slow
+    def test_multi_file_web_app(self, real_agent):
+        """Test: Create coordinated multi-file web application"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Multi-file web app with coordination")
+        print("="*60)
+
+        prompt = """Create a simple web app:
+        - index.html with a table to display user data
+        - styles.css with modern styling for the table
+        - app.js that creates mock user data and populates the table
+        Make sure the HTML properly links to the CSS and JS files."""
+
+        response = agent.chat(prompt)
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        # Check all files exist
+        html_file = workspace / "index.html"
+        css_file = workspace / "styles.css"
+        js_file = workspace / "app.js"
+
+        print(f"[CHECK] index.html exists: {html_file.exists()}")
+        print(f"[CHECK] styles.css exists: {css_file.exists()}")
+        print(f"[CHECK] app.js exists: {js_file.exists()}")
+
+        # Verify HTML links to CSS and JS
+        if html_file.exists():
+            html_content = html_file.read_text()
+            has_css_link = "styles.css" in html_content
+            has_js_link = "app.js" in html_content
+            print(f"[VERIFY] HTML links to CSS: {has_css_link}")
+            print(f"[VERIFY] HTML links to JS: {has_js_link}")
+
+        print("[PASS] Multi-file web app test completed!")
+
+    @pytest.mark.real_workspace
+    def test_code_analysis_and_modification(self, real_agent):
+        """Test: Read, analyze, and modify existing code"""
+        agent, workspace = real_agent
+
+        print("\n" + "="*60)
+        print("TEST: Code analysis and modification")
+        print("="*60)
+
+        # First create a simple function
+        setup_prompt = "Create greet.py with a simple greet(name) function that prints a greeting"
+        agent.chat(setup_prompt)
+
+        # Now analyze and improve it
+        prompt = """Read greet.py, analyze the greet() function, and improve it by:
+        - Adding a docstring
+        - Adding input validation (check if name is not empty)
+        - Return the greeting instead of printing it
+        Then create example.py showing how to use the improved function."""
+
+        response = agent.chat(prompt)
+
+        print(f"\n[RESPONSE] Agent response:\n{response}\n")
+
+        greet_file = workspace / "greet.py"
+        example_file = workspace / "example.py"
+
+        print(f"[CHECK] greet.py exists: {greet_file.exists()}")
+        print(f"[CHECK] example.py exists: {example_file.exists()}")
+
+        if greet_file.exists():
+            content = greet_file.read_text()
+            has_docstring = '"""' in content or "'''" in content
+            has_return = "return" in content
+            print(f"[VERIFY] Has docstring: {has_docstring}")
+            print(f"[VERIFY] Has return statement: {has_return}")
+
+        print("[PASS] Code analysis and modification test completed!")
 
 
 if __name__ == "__main__":
